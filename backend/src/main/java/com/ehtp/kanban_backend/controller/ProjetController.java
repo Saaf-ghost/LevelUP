@@ -100,6 +100,12 @@ public class ProjetController {
         return projetService.inviteMember(id, email);
     }
 
+    @GetMapping("/{id}/requirements")
+    @PreAuthorize("@projectSecurity.hasRole(#id, 'VIEWER')")
+    public List<Requirement> getRequirementsByProject(@PathVariable Long id) {
+        return requirementService.getRequirementsByProject(id);
+    }
+
     @PostMapping("/{id}/requirements")
     @PreAuthorize("@projectSecurity.hasRole(#id, 'OWNER')")
     public Requirement addRequirement(@PathVariable Long id, @RequestBody RequirementRequestDTO reqDto) {

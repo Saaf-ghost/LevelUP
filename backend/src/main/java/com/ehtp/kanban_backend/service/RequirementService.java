@@ -37,15 +37,14 @@ public class RequirementService {
         if (dto.getSprintId() != null) {
             Sprint sprint = sprintRepository.findById(dto.getSprintId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
-            
-            // Assert project ownership
+
             User currentUser = authorizationService.currentUser();
             if (sprint.getProject().getOwner().getId() != currentUser.getId()) {
                 throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
             }
 
             if (sprint.getIsActive()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot inject requirement directly into an active sprint. It must go through the backlog.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot inject requirement directly into an active sprint.");
             }
 
             Requirement requirement = new Requirement();
@@ -65,20 +64,25 @@ public class RequirementService {
         Projet project = projetRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
 
-        // Assert project ownership
         User currentUser = authorizationService.currentUser();
+        // Use Long comparison correctly (avoid object identity comparison)
         if (project.getOwner().getId() != currentUser.getId()) {
             throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
         }
 
         Requirement requirement = new Requirement();
-        requirement.setTitle(dto.getTitle());
+        requirement.setTitle(dto.getTitle() == null || dto.getTitle().isBlank() ? "Untitled Requirement" : dto.getTitle().trim());
         requirement.setDescription(dto.getDescription() == null ? "" : dto.getDescription());
         requirement.setColor(dto.getColor() == null ? "#3b82f6" : dto.getColor());
         requirement.setProject(project);
         requirement.setStatus(Requirement.RequirementStatus.BACKLOG);
+        // sprint is intentionally null — this is a backlog item
 
         return requirementRepository.save(requirement);
+    }
+
+    public List<Requirement> getRequirementsByProject(Long projectId) {
+        return requirementRepository.findByProjectId(projectId);
     }
 
     public List<Requirement> getRequirementsBySprint(Long sprintId) {
@@ -92,7 +96,7 @@ public class RequirementService {
 
     public Requirement updateRequirement(Long id, RequirementRequestDTO dto) {
         Requirement requirement = getRequirementById(id);
-        
+
         User currentUser = authorizationService.currentUser();
         if (requirement.getProject().getOwner().getId() != currentUser.getId()) {
             throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
@@ -110,8 +114,8 @@ public class RequirementService {
         if (dto.getSprintId() != null) {
             Sprint sprint = sprintRepository.findById(dto.getSprintId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
-            if (sprint.getIsActive() && !sprint.equals(requirement.getSprint())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot inject requirement directly into an active sprint. It must go through the backlog.");
+            if (sprint.getIsActive() && (requirement.getSprint() == null || sprint.getSprintId() != requirement.getSprint().getSprintId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot inject requirement directly into an active sprint.");
             }
             requirement.setSprint(sprint);
         }

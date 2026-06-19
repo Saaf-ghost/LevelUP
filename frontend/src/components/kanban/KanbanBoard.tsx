@@ -21,7 +21,6 @@ import { useSprint } from '../../context/SprintContext';
 import { Plus, LayoutTemplate, ListChecks, RotateCcw } from 'lucide-react';
 import KanbanColumn from './KanbanColumn';
 import TaskCard from './TaskCard';
-import CreateSprintModal from './CreateSprintModal';
 import AddSubtaskModal from './AddSubtaskModal';
 import RequirementsPanel from './RequirementsPanel';
 
@@ -31,12 +30,10 @@ const KanbanBoard: React.FC = () => {
   const { sprint, loading, updateSubtaskStatus, refreshData } = useSprint();
   const [tasks, setTasks] = useState<Subtask[]>([]);
   const [activeTask, setActiveTask] = useState<Subtask | null>(null);
-  const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
   const [isAddSubtaskModalOpen, setIsAddSubtaskModalOpen] = useState(false);
   const [isReqPanelOpen, setIsReqPanelOpen] = useState(false);
   const { role } = useAuth();
 
-  const isManager = role === 'MANAGER' || role === 'OWNER';
   const canAddTask = role !== 'VIEWER';
 
   const sensors = useSensors(
@@ -175,15 +172,6 @@ const KanbanBoard: React.FC = () => {
               Add Subtask
             </button>
           )}
-          {isManager && (
-            <button
-              onClick={() => setIsSprintModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-indigo-500/20"
-            >
-              <LayoutTemplate size={14} />
-              Create Sprint
-            </button>
-          )}
         </div>
       </div>
 
@@ -210,10 +198,6 @@ const KanbanBoard: React.FC = () => {
           {activeTask ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
       </DndContext>
-
-      {isSprintModalOpen && (
-        <CreateSprintModal onClose={() => setIsSprintModalOpen(false)} />
-      )}
 
       {isAddSubtaskModalOpen && (
         <AddSubtaskModal onClose={() => setIsAddSubtaskModalOpen(false)} />

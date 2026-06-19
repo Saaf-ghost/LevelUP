@@ -13,6 +13,7 @@ import java.util.List;
 @Table(name = "sprints")
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Sprint extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,11 +49,11 @@ public class Sprint extends BaseAudit {
     @JoinColumn(name = "project_id", nullable = false)
     private Projet project;
 
-    @JsonIgnoreProperties("sprint")
+    @JsonIgnoreProperties({"sprint", "subtasks"})
     @OneToMany(mappedBy = "sprint", cascade = CascadeType.ALL)
     private List<Requirement> requirements = new ArrayList<>();
 
-    @JsonIgnoreProperties("sprint")
+    @JsonIgnoreProperties({"sprint", "requirement", "decisionNotes", "statusHistory"})
     @OneToMany(mappedBy = "sprint", cascade = CascadeType.ALL)
     private List<Task> tasks = new ArrayList<>();
 

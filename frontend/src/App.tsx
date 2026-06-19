@@ -4,15 +4,10 @@ import Layout from './components/layout/Layout';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SprintProvider } from './context/SprintContext';
 
-const KanbanBoard = lazy(() => import('./components/kanban/KanbanBoard'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
-const Profile = lazy(() => import('./pages/Profile'));
-const MyTasks = lazy(() => import('./pages/MyTasks'));
-const Team = lazy(() => import('./pages/Team'));
-const Projects = lazy(() => import('./pages/Projects'));
-const AiInsights = lazy(() => import('./pages/AiInsights'));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -32,12 +27,8 @@ const App: React.FC = () => {
               <Route path="/register" element={<Register />} />
               
               <Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route index element={<KanbanBoard />} />
-                <Route path="projects" element={<Projects />} />
-                <Route path="team" element={<Team />} />
-                <Route path="ai-insights" element={<AiInsights />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="my-tasks" element={<MyTasks />} />
+                <Route index element={<Dashboard />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>
               
               <Route path="*" element={<Navigate to="/" replace />} />

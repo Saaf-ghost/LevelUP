@@ -1,6 +1,7 @@
 package com.ehtp.kanban_backend.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,6 +15,7 @@ import java.util.List;
 })
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class User extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,9 +23,6 @@ public class User extends BaseAudit {
 
     @Column(nullable = false, unique = true)
     private String email;
-
-    @Column(nullable = false)
-    private String name;
 
     @Column(nullable = false)
     private String fullName;
@@ -57,7 +56,6 @@ public class User extends BaseAudit {
     public User(String email, String fullName, String passwordHash, Role role, Integer capacityPoints) {
         this.email = email;
         this.fullName = fullName;
-        this.name = fullName;
         this.passwordHash = passwordHash;
         this.role = role;
         this.capacityPoints = capacityPoints;
@@ -65,11 +63,14 @@ public class User extends BaseAudit {
 
     public void setFullName(String fullName) {
         this.fullName = fullName;
-        this.name = fullName;
+    }
+
+    @Transient
+    public String getName() {
+        return this.fullName;
     }
 
     public void setName(String name) {
-        this.name = name;
         this.fullName = name;
     }
 }

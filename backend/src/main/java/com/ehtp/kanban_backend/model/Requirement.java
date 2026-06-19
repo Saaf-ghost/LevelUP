@@ -12,6 +12,7 @@ import java.util.List;
 @Table(name = "requirements")
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Requirement extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,7 +44,7 @@ public class Requirement extends BaseAudit {
     private Projet project;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sprint_id")
+    @JoinColumn(name = "sprint_id", nullable = true)
     @JsonIgnoreProperties({"requirements", "project", "tasks"})
     private Sprint sprint;
 

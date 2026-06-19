@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 @Table(name = "ai_insights")
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class AiInsight extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
