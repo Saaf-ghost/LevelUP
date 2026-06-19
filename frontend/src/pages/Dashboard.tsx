@@ -91,6 +91,9 @@ export const Dashboard: React.FC = () => {
   // Expanded Requirements in Tab B tree
   const [expandedReqs, setExpandedReqs] = useState<Record<number, boolean>>({});
 
+  // Expanded Contributors in Tab D tree
+  const [expandedMembers, setExpandedMembers] = useState<Record<number, boolean>>({});
+
   const toggleReqExpand = (id: number) => {
     setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -1106,27 +1109,143 @@ export const Dashboard: React.FC = () => {
               <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
                 <h3 className="text-sm font-bold text-slate-200">Active Workspace Contributors</h3>
                 <div className="divide-y divide-slate-800">
-                  {members.map(m => (
-                    <div key={m.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
-                          {m.fullName.charAt(0)}
+                  {members.map(m => {
+                    const isExpanded = !!expandedMembers[m.id];
+                    
+                    // Filter tasks assigned to this member in active sprint and requirements backlog
+                    const userTasks: any[] = [];
+                    const taskIds = new Set<number>();
+                    
+                    if (sprint?.subtasks) {
+                      sprint.subtasks.forEach(t => {
+                        if (t.assignee?.id === m.id) {
+                          userTasks.push(t);
+                          taskIds.add(t.id);
+                        }
+                      });
+                    }
+                    
+                    allProjectRequirements?.forEach(r => {
+                      r.tasks?.forEach(t => {
+                        if ((t.assignee?.id === m.id || t.assigneeId === m.id) && !taskIds.has(t.id)) {
+                          userTasks.push(t);
+                          taskIds.add(t.id);
+                        }
+                      });
+                    });
+                    
+                    const totalPoints = userTasks.reduce((sum, t) => sum + (t.effortPoints || 0), 0);
+                    const doneTasks = userTasks.filter(t => t.status === 'DONE');
+                    const progressPercentage = m.capacityPoints > 0 ? Math.min(100, Math.round((totalPoints / m.capacityPoints) * 100)) : 0;
+                    
+                    return (
+                      <div key={m.id} className="border-b border-slate-800 last:border-b-0 py-2.5">
+                        {/* Member Summary Row */}
+                        <div
+                          onClick={() => setExpandedMembers(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                          className="flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-800/30 p-2 rounded-xl transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
+                              {m.fullName.charAt(0)}
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-200">{m.fullName}</h4>
+                              <p className="text-[10px] text-slate-500">{m.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-semibold uppercase">
+                              {m.role}
+                            </span>
+                            <span className="text-[9px] bg-slate-850 text-slate-450 px-2 py-0.5 rounded-full font-medium">
+                              {totalPoints} / {m.capacityPoints} SP
+                            </span>
+                            <div className="text-slate-400">
+                              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-200">{m.fullName}</h4>
-                          <p className="text-[10px] text-slate-500">{m.email}</p>
-                        </div>
+                        
+                        {/* Accordion Content */}
+                        {isExpanded && (
+                          <div className="mt-3 pl-12 pr-4 pb-2 space-y-3 animate-fade-in text-xs text-slate-300">
+                            {/* Capacity Utilization Progress Bar */}
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between text-[10px] text-slate-450 font-semibold uppercase">
+                                <span>Capacity Utilization</span>
+                                <span>{progressPercentage}% ({totalPoints} / {m.capacityPoints} SP)</span>
+                              </div>
+                              <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-800">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    progressPercentage > 100
+                                      ? 'bg-rose-500'
+                                      : progressPercentage > 80
+                                      ? 'bg-amber-500'
+                                      : 'bg-indigo-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, progressPercentage)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            
+                            {/* Task Breakdown stats */}
+                            <div className="grid grid-cols-3 gap-2 text-center text-[10px] py-1 bg-slate-950/40 rounded-lg border border-slate-850">
+                              <div>
+                                <span className="block font-bold text-slate-200">{userTasks.length}</span>
+                                <span className="text-slate-500 uppercase font-semibold">Total Tasks</span>
+                              </div>
+                              <div>
+                                <span className="block font-bold text-emerald-400">{doneTasks.length}</span>
+                                <span className="text-slate-500 uppercase font-semibold">Completed</span>
+                              </div>
+                              <div>
+                                <span className="block font-bold text-amber-400">{userTasks.filter(t => t.status === 'IN_PROGRESS').length}</span>
+                                <span className="text-slate-500 uppercase font-semibold">In Progress</span>
+                              </div>
+                            </div>
+                            
+                            {/* Assigned Tasks list */}
+                            <div className="space-y-1.5">
+                              <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Subtasks</h5>
+                              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                                {userTasks.map(t => {
+                                  const reqTitle = allProjectRequirements.find(r => r.id === t.requirementId)?.title || 'Task';
+                                  
+                                  const statusBadge: Record<TaskStatus, string> = {
+                                    TODO: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                                    IN_PROGRESS: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                                    DONE: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                                  };
+                                  
+                                  return (
+                                    <div key={t.id} className="flex justify-between items-center bg-slate-950/60 hover:bg-slate-950 p-2 rounded-lg border border-slate-850/50">
+                                      <div className="min-w-0 pr-2">
+                                        <div className="text-[11px] font-medium text-slate-200 truncate">{t.title}</div>
+                                        <div className="text-[9px] text-slate-500 truncate">{reqTitle}</div>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`text-[8px] font-bold border px-1.5 py-0.5 rounded uppercase tracking-wider ${statusBadge[t.status]}`}>
+                                          {t.status.replace('_', ' ')}
+                                        </span>
+                                        <span className="text-[9px] font-bold bg-slate-900 px-1 py-0.5 rounded border border-slate-800 text-slate-400">
+                                          {t.effortPoints} SP
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {userTasks.length === 0 && (
+                                  <p className="text-[10px] text-slate-500 italic text-center py-2">No tasks assigned to this contributor.</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-semibold uppercase">
-                          {m.role}
-                        </span>
-                        <span className="text-[9px] bg-slate-850 text-slate-450 px-2 py-0.5 rounded-full font-medium">
-                          {m.capacityPoints} SP
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {members.length === 0 && (
                     <p className="text-xs text-slate-500 italic text-center py-4">No team contributors added yet.</p>
                   )}

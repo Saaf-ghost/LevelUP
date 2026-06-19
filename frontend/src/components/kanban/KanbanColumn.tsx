@@ -31,7 +31,7 @@ const KanbanColumn: React.FC<Props> = ({ id, tasks }) => {
   };
 
   return (
-    <div className="flex flex-col flex-shrink-0 w-72 bg-slate-850/40 rounded-xl border border-slate-800/60 h-full max-h-full overflow-hidden">
+    <div className="flex flex-col flex-1 min-w-[250px] bg-slate-850/40 rounded-xl border border-slate-800/60 h-full max-h-full overflow-hidden">
       {/* Column header */}
       <div className="px-3 py-2.5 border-b border-slate-800/60 flex items-center justify-between bg-slate-900/40">
         <div className="flex items-center gap-2">

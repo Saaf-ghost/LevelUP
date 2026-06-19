@@ -18,10 +18,9 @@ import {
 import type { Subtask, TaskStatus } from '../../context/SprintContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSprint } from '../../context/SprintContext';
-import { Plus, LayoutTemplate, ListChecks, RotateCcw } from 'lucide-react';
+import { LayoutTemplate, ListChecks, RotateCcw } from 'lucide-react';
 import KanbanColumn from './KanbanColumn';
 import TaskCard from './TaskCard';
-import AddSubtaskModal from './AddSubtaskModal';
 import RequirementsPanel from './RequirementsPanel';
 
 const COLUMNS: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'DONE'];
@@ -30,7 +29,6 @@ const KanbanBoard: React.FC = () => {
   const { sprint, loading, updateSubtaskStatus, refreshData } = useSprint();
   const [tasks, setTasks] = useState<Subtask[]>([]);
   const [activeTask, setActiveTask] = useState<Subtask | null>(null);
-  const [isAddSubtaskModalOpen, setIsAddSubtaskModalOpen] = useState(false);
   const [isReqPanelOpen, setIsReqPanelOpen] = useState(false);
   const { role } = useAuth();
 
@@ -102,6 +100,10 @@ const KanbanBoard: React.FC = () => {
     const task = tasks.find(t => t.id === active.id);
     if (!task) return;
 
+    // Find the original task status from the context/sprint data source
+    const originalTask = sprint?.subtasks?.find(t => t.id === active.id);
+    const originalStatus = originalTask ? originalTask.status : task.status;
+
     let newStatus: TaskStatus = task.status;
     const isOverColumn = over.data.current?.type === 'Column';
     const isOverTask = over.data.current?.type === 'Task';
@@ -115,8 +117,9 @@ const KanbanBoard: React.FC = () => {
       }
     }
 
-    if (newStatus !== task.status) {
-      // Optimistically update
+    // Compare with the true database status (originalStatus) to decide if we need to call the API
+    if (newStatus !== originalStatus) {
+      // Optimistically update local UI state
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
       await updateSubtaskStatus(task.id, newStatus);
     }
@@ -143,7 +146,7 @@ const KanbanBoard: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-slate-100">Board</h2>
@@ -163,15 +166,6 @@ const KanbanBoard: React.FC = () => {
             <ListChecks size={14} />
             Requirements
           </button>
-          {canAddTask && (
-            <button
-              onClick={() => setIsAddSubtaskModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-colors border border-slate-700"
-            >
-              <Plus size={14} />
-              Add Subtask
-            </button>
-          )}
         </div>
       </div>
 
@@ -186,7 +180,7 @@ const KanbanBoard: React.FC = () => {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto h-full pb-4 items-start">
+        <div className="flex gap-3 overflow-x-auto h-full pb-4 items-start w-full">
           <SortableContext items={COLUMNS} strategy={horizontalListSortingStrategy}>
             {COLUMNS.map(col => (
               <KanbanColumn key={col} id={col} tasks={getTasksByColumn(col)} />
@@ -198,10 +192,6 @@ const KanbanBoard: React.FC = () => {
           {activeTask ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
       </DndContext>
-
-      {isAddSubtaskModalOpen && (
-        <AddSubtaskModal onClose={() => setIsAddSubtaskModalOpen(false)} />
-      )}
     </div>
   );
 };
