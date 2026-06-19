@@ -1,8 +1,7 @@
 import React from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import type { Subtask, TaskStatus } from '../../mockData';
-import { COLUMN_LABELS } from '../../mockData';
+import type { Subtask, TaskStatus } from '../../context/SprintContext';
 import TaskCard from './TaskCard';
 
 interface Props {
@@ -10,13 +9,19 @@ interface Props {
   tasks: Subtask[];
 }
 
+const COLUMN_LABELS: Record<TaskStatus, string> = {
+  TODO: 'To Do',
+  IN_PROGRESS: 'In Progress',
+  DONE: 'Done',
+};
+
 const KanbanColumn: React.FC<Props> = ({ id, tasks }) => {
   const { setNodeRef, isOver } = useDroppable({
     id,
     data: { type: 'Column', columnId: id },
   });
 
-  const totalPoints = tasks.reduce((sum, t) => sum + t.storyPoints, 0);
+  const totalPoints = tasks.reduce((sum, t) => sum + t.effortPoints, 0);
 
   // Subtle color accent per column
   const dotColor: Record<TaskStatus, string> = {
@@ -59,7 +64,7 @@ const KanbanColumn: React.FC<Props> = ({ id, tasks }) => {
         </SortableContext>
 
         {tasks.length === 0 && (
-          <div className="h-full min-h-[80px] border border-dashed border-slate-700/40 rounded-lg flex items-center justify-center text-slate-600 text-xs">
+          <div className="h-full min-h-[80px] border border-dashed border-slate-700/40 rounded-lg flex items-center justify-center text-slate-650 text-xs">
             Drop here
           </div>
         )}

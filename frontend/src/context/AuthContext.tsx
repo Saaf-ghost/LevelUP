@@ -1,9 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
-import type { User } from '../services/mockBackend';
+export type Role = 'OWNER' | 'MEMBER' | 'VIEWER' | 'MANAGER' | 'ADMIN';
 
-export type Role = 'OWNER' | 'MEMBER' | 'VIEWER' | 'MANAGER';
+export interface User {
+  id: number;
+  email: string;
+  fullName: string;
+  role: Role;
+  capacityPoints: number;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -49,19 +55,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const formatUser = (u: any) => {
     if (!u) return null;
-    let firstName = u.firstName || '';
-    let lastName = u.lastName || '';
-    if (u.fullName && (!firstName || !lastName)) {
-      const parts = u.fullName.split(' ');
-      firstName = parts[0] || '';
-      lastName = parts.slice(1).join(' ') || '';
-    }
     return {
-      ...u,
-      firstName,
-      lastName,
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName || 'Unknown User',
       role: u.role || 'MEMBER',
-      avatarUrl: u.avatarUrl || `https://i.pravatar.cc/150?u=${u.id}`
+      capacityPoints: u.capacityPoints || 40
     };
   };
 
@@ -70,13 +69,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem(AUTH_TOKEN_KEY, token);
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
     setUser(normalized);
-    setRole(normalized.role as Role);
+    setRole(normalized?.role as Role);
     setIsAuthenticated(true);
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_USER_KEY);
+    localStorage.removeItem('levelup_current_project_id');
     setUser(null);
     setRole('VIEWER');
     setIsAuthenticated(false);

@@ -14,6 +14,7 @@ import lombok.EqualsAndHashCode;
 @Entity
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class DecisionNote extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

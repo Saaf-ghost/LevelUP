@@ -4,50 +4,78 @@ import { useAuth } from './AuthContext';
 
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
 
+export interface User {
+  id: number;
+  email: string;
+  fullName: string;
+  role: 'OWNER' | 'MEMBER' | 'VIEWER' | 'ADMIN';
+  capacityPoints: number;
+}
+
 export interface Project {
   id: number;
   name: string;
   description: string;
-}
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  avatar: string;
-  skills: string[];
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  owner?: User;
+  members?: User[];
+  requirements?: Requirement[];
+  sprints?: SprintInfo[];
 }
 
 export interface Requirement {
-  id: string;
+  id: number;
   title: string;
   description: string;
   color: string;
   status: TaskStatus;
   storyPoints: number;
+  sprintId?: number | null;
+  tasks?: Subtask[];
 }
 
 export interface Subtask {
-  id: string;
-  requirementId: string;
+  id: number;
+  requirementId: number;
   title: string;
+  description?: string;
+  priority: string;
   status: TaskStatus;
-  assigneeId?: string;
-  storyPoints: number;
-  timeInColumn: number;
+  isCompleted: boolean;
+  effortPoints: number;
+  estimatedHours: number;
+  assigneeId?: number | null;
+  assignee?: User | null;
+  statusChangedAt?: string;
 }
 
 export interface AiInsight {
-  id: string;
-  type: 'RISK_WARNING' | 'REASSIGNMENT_SUGGESTION' | 'RETROSPECTIVE';
-  title: string;
-  description: string;
-  rationale?: string;
-  suggestedAction?: string;
-  impact?: string;
+  id: number;
+  explanation: string;
+  confidenceScore: number;
+  acknowledged: boolean;
+  insightType: 'RISK_ALERT' | 'REASSIGNMENT_SUGGESTION' | 'RETROSPECTIVE';
+  sprintHealthScore: number;
+  riskLevel: string;
+  bottlenecksJson?: string;
+  automatedStandupSummary?: string;
+}
+
+export interface SprintInfo {
+  sprintId: number;
+  objective: string;
+  startDate: string;
+  endDate: string;
+  sprintStatus: 'PLANNED' | 'ACTIVE' | 'DONE';
+  pointsPlanned: number;
+  isActive: boolean;
+  isConcluded: boolean;
 }
 
 export interface SprintData {
-  id: string;
+  id: number;
   name: string;
   objectives: string;
   healthScore: number;
@@ -56,63 +84,82 @@ export interface SprintData {
   requirements: Requirement[];
   subtasks: Subtask[];
   insights: AiInsight[];
+  sprintStatus: 'PLANNED' | 'ACTIVE' | 'DONE';
 }
 
 interface SprintContextType {
   projects: Project[];
+  ownedProjects: Project[];
+  memberProjects: Project[];
   currentProject: Project | null;
   setCurrentProject: (project: Project | null) => void;
   sprint: SprintData | null;
   loading: boolean;
-  members: TeamMember[];
+  members: User[];
+  allProjectRequirements: Requirement[];
   refreshData: () => Promise<void>;
-  updateSubtaskStatus: (subtaskId: string, newStatus: TaskStatus) => Promise<void>;
-  addNewSubtask: (requirementId: string, title: string, storyPoints: number, assigneeId?: string) => Promise<void>;
+  updateSubtaskStatus: (subtaskId: number, newStatus: TaskStatus) => Promise<void>;
+  addNewRequirement: (title: string, description: string, color: string) => Promise<void>;
+  addNewSubtask: (requirementId: number, title: string, storyPoints: number, assigneeId?: number | null) => Promise<void>;
   createNewSprint: (
-    title: string,
-    objectives: string,
+    objective: string,
     startDate: string,
     endDate: string,
-    pointsPlanned: number,
-    requirementsInput?: {
-      title: string;
-      subtasks: {
-        title: string;
-        storyPoints: number;
-        assigneeId?: string;
-      }[];
-    }[],
-    status?: 'ACTIVE' | 'PLANNED'
+    plannedStoryPoints: number,
+    requirementIds: number[]
   ) => Promise<void>;
-  completeSprint: (sprintId: string) => Promise<void>;
+  completeSprint: (sprintId: number) => Promise<void>;
   createProject: (name: string, description: string) => Promise<Project>;
+  inviteMember: (email: string) => Promise<void>;
 }
 
 const SprintContext = createContext<SprintContextType | undefined>(undefined);
 
 export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [ownedProjects, setOwnedProjects] = useState<Project[]>([]);
+  const [memberProjects, setMemberProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProjectState] = useState<Project | null>(null);
   const [sprint, setSprint] = useState<SprintData | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<User[]>([]);
+  const [allProjectRequirements, setAllProjectRequirements] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   const loadProjects = useCallback(async () => {
+    if (!user) return [];
     try {
-      const res = await api.get<any[]>('/projects');
-      const formattedProjects = res.data.map(p => ({
+      const res = await api.get<any>(`/home?userId=${user.id}`);
+      const owned = (res.data.ownedProjects || []).map((p: any) => ({
         id: p.id,
         name: p.name,
-        description: p.description
+        description: p.description,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        status: p.status,
+        owner: p.owner,
+        members: p.members
       }));
-      setProjects(formattedProjects);
-      return formattedProjects;
+      const member = (res.data.memberProjects || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        status: p.status,
+        owner: p.owner,
+        members: p.members
+      }));
+      setOwnedProjects(owned);
+      setMemberProjects(member);
+      const combined = [...owned, ...member];
+      setProjects(combined);
+      return combined;
     } catch (err) {
-      console.error('Failed to load projects', err);
+      console.error('Failed to load projects via home API', err);
       return [];
     }
-  }, []);
+  }, [user]);
 
   const loadProjectDetail = useCallback(async (projectId: number) => {
     setLoading(true);
@@ -120,12 +167,82 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const res = await api.get<any>(`/projects/${projectId}/detail`);
       const data = res.data;
 
+      // Update current project local details
+      const detailProj: Project = {
+        id: data.project.id,
+        name: data.project.name,
+        description: data.project.description,
+        startDate: data.project.startDate,
+        endDate: data.project.endDate,
+        status: data.project.status,
+        owner: data.project.owner,
+      };
+      setCurrentProjectState(detailProj);
+
+      // Fetch ALL project requirements from dedicated endpoint (includes backlog ones)
+      let mappedReqs: Requirement[] = [];
+      try {
+        const reqsRes = await api.get<any[]>(`/projects/${projectId}/requirements`);
+        mappedReqs = (reqsRes.data || []).map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description || '',
+          color: r.color || '#6366F1',
+          status: r.status || 'BACKLOG',
+          storyPoints: r.storyPoints || 0,
+          sprintId: r.sprint ? r.sprint.sprintId : null,
+          tasks: (r.subtasks || r.tasks || []).map((t: any) => ({
+            id: t.id,
+            requirementId: r.id,
+            title: t.title,
+            description: t.description,
+            priority: t.priority,
+            status: t.status,
+            isCompleted: t.isCompleted || false,
+            effortPoints: t.effortPoints || 0,
+            estimatedHours: t.estimatedHours || 0,
+            assigneeId: t.assignee ? t.assignee.id : null,
+            assignee: t.assignee,
+            statusChangedAt: t.statusChangedAt
+          }))
+        }));
+      } catch (reqErr) {
+        console.warn('Failed to load requirements, falling back to project detail', reqErr);
+        // Fallback: use requirements embedded in project detail
+        const rawReqs = data.project.requirements || [];
+        mappedReqs = rawReqs.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description || '',
+          color: r.color || '#6366F1',
+          status: r.status || 'BACKLOG',
+          storyPoints: r.storyPoints || 0,
+          sprintId: r.sprint ? r.sprint.sprintId : null,
+          tasks: (r.subtasks || r.tasks || []).map((t: any) => ({
+            id: t.id,
+            requirementId: r.id,
+            title: t.title,
+            description: t.description,
+            priority: t.priority,
+            status: t.status,
+            isCompleted: t.isCompleted || false,
+            effortPoints: t.effortPoints || 0,
+            estimatedHours: t.estimatedHours || 0,
+            assigneeId: t.assignee ? t.assignee.id : null,
+            assignee: t.assignee,
+            statusChangedAt: t.statusChangedAt
+          }))
+        }));
+      }
+      setAllProjectRequirements(mappedReqs);
+
       // Map members
-      const mappedMembers: TeamMember[] = (data.members || []).map((m: any) => ({
-        id: String(m.id),
-        name: m.fullName || `${m.firstName || ''} ${m.lastName || ''}`.trim() || 'Unknown',
-        avatar: m.avatarUrl || `https://i.pravatar.cc/150?u=${m.id}`,
-        skills: m.skills ? m.skills.split(',').map((s: string) => s.trim()) : ['Developer']
+      const mappedMembers: User[] = (data.members || []).map((m: any) => ({
+        id: m.id,
+        email: m.email,
+        fullName: m.fullName || 'Unknown Member',
+        role: m.role || 'MEMBER',
+        capacityPoints: m.capacityPoints || 40
       }));
       setMembers(mappedMembers);
 
@@ -136,83 +253,37 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         // Map subtasks
         const mappedSubtasks: Subtask[] = tasks.map((t: any) => ({
-          id: String(t.id),
-          requirementId: t.requirement ? String(t.requirement.id) : '',
+          id: t.id,
+          requirementId: t.requirement ? t.requirement.id : 0,
           title: t.title,
-          status: (t.status === 'TODO' || t.status === 'IN_PROGRESS' || t.status === 'DONE') ? t.status : 'TODO',
-          assigneeId: t.assignee ? String(t.assignee.id) : undefined,
-          storyPoints: t.effortPoints || 0,
-          timeInColumn: 0
+          description: t.description || '',
+          priority: t.priority || 'MEDIUM',
+          status: t.status || 'TODO',
+          isCompleted: t.isCompleted || false,
+          effortPoints: t.effortPoints || 0,
+          estimatedHours: t.estimatedHours || 0,
+          assigneeId: t.assignee ? t.assignee.id : null,
+          assignee: t.assignee,
+          statusChangedAt: t.statusChangedAt
         }));
 
-        // Expose requirements inside activeSprint or load from backend
-        // We'll extract unique requirements from activeSprintTasks and merge with any empty ones
-        const uniqueReqMap = new Map<string, Requirement>();
-        
-        // Add all requirements that are associated with tasks
-        tasks.forEach((t: any) => {
-          if (t.requirement) {
-            const reqId = String(t.requirement.id);
-            if (!uniqueReqMap.has(reqId)) {
-              uniqueReqMap.set(reqId, {
-                id: reqId,
-                title: t.requirement.title,
-                description: t.requirement.description || '',
-                color: t.requirement.color || '#3b82f6',
-                status: 'TODO',
-                storyPoints: 0
-              });
-            }
-          }
-        });
+        // Requirements inside active sprint
+        const sprintRequirements = mappedReqs.filter(r => r.sprintId === activeSprint.sprintId);
 
-        // Also fetch project requirements directly to ensure we have all of them
-        try {
-          const reqRes = await api.get<any[]>(`/requirements/sprint/${activeSprint.sprintId}`);
-          reqRes.data.forEach(r => {
-            const reqId = String(r.id);
-            if (!uniqueReqMap.has(reqId)) {
-              uniqueReqMap.set(reqId, {
-                id: reqId,
-                title: r.title,
-                description: r.description || '',
-                color: r.color || '#3b82f6',
-                status: 'TODO',
-                storyPoints: 0
-              });
-            }
-          });
-        } catch (reqErr) {
-          console.warn('Failed to load requirement objects', reqErr);
-        }
-
-        const mappedRequirements = Array.from(uniqueReqMap.values());
-
-        // Recalculate requirement totals
-        mappedRequirements.forEach(req => {
-          const linked = mappedSubtasks.filter(s => s.requirementId === req.id);
-          req.storyPoints = linked.reduce((sum, s) => sum + s.storyPoints, 0);
-          if (linked.length > 0) {
-            if (linked.every(s => s.status === 'DONE')) req.status = 'DONE';
-            else if (linked.some(s => s.status === 'IN_PROGRESS')) req.status = 'IN_PROGRESS';
-            else req.status = 'TODO';
-          }
-        });
-
-        // Load AI Insights
+        // Fetch AI Insights
         let mappedInsights: AiInsight[] = [];
         try {
           const insightRes = await api.get<any[]>(`/ai/sprint/${activeSprint.sprintId}`);
           mappedInsights = insightRes.data.map(ins => ({
-            id: String(ins.id),
-            type: ins.insightType === 'RISK_ALERT' ? 'RISK_WARNING' 
-                  : ins.insightType === 'REASSIGNMENT_SUGGESTION' ? 'REASSIGNMENT_SUGGESTION' 
-                  : 'RETROSPECTIVE',
-            title: ins.insightType === 'RISK_ALERT' ? 'Sprint Risk Warning' 
-                   : ins.insightType === 'REASSIGNMENT_SUGGESTION' ? 'Reassignment Suggestion' 
-                   : 'Historical Pattern Analysis',
-            description: ins.explanation,
-            rationale: ins.explanation.substring(0, 100) + '...'
+            id: ins.id,
+            explanation: ins.explanation,
+            confidenceScore: ins.confidenceScore,
+            acknowledged: ins.acknowledged,
+            insightType: ins.insightType,
+            sprintHealthScore: ins.sprintHealthScore || 100,
+            riskLevel: ins.riskLevel || 'LOW',
+            bottlenecksJson: ins.bottlenecksJson,
+            automatedStandupSummary: ins.automatedStandupSummary
           }));
         } catch (insErr) {
           console.warn('Failed to load AI Insights', insErr);
@@ -221,22 +292,24 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Fetch Health Score
         let healthScore = 100;
         try {
-          const healthRes = await api.get<any>(`/sprints/${activeSprint.sprintId}/health`);
-          healthScore = healthRes.data.score || 100;
+          const metricsRes = await api.get<any>(`/projects/${projectId}/metrics`);
+          // The backend metrics map includes "healthScore" or active sprint metrics
+          healthScore = metricsRes.data.activeSprintHealthScore || metricsRes.data.healthScore || 100;
         } catch (healthErr) {
-          console.warn('Failed to load health score', healthErr);
+          console.warn('Failed to load health score from metrics', healthErr);
         }
 
         setSprint({
-          id: String(activeSprint.sprintId),
+          id: activeSprint.sprintId,
           name: activeSprint.objective || `Sprint ${activeSprint.sprintId}`,
           objectives: activeSprint.objective || '',
           healthScore: healthScore,
           startDate: activeSprint.startDate,
           endDate: activeSprint.endDate,
-          requirements: mappedRequirements,
+          requirements: sprintRequirements,
           subtasks: mappedSubtasks,
-          insights: mappedInsights
+          insights: mappedInsights,
+          sprintStatus: activeSprint.sprintStatus
         });
       } else {
         setSprint(null);
@@ -257,34 +330,32 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else {
       localStorage.removeItem('levelup_current_project_id');
       setSprint(null);
+      setAllProjectRequirements([]);
+      setMembers([]);
     }
   }, [loadProjectDetail]);
 
   const refreshData = useCallback(async () => {
     if (!isAuthenticated) return;
     const list = await loadProjects();
-    if (list.length > 0) {
-      let activeProj = currentProject;
-      if (!activeProj) {
-        const storedId = localStorage.getItem('levelup_current_project_id');
-        if (storedId) {
-          activeProj = list.find(p => String(p.id) === storedId) || list[0];
-        } else {
-          activeProj = list[0];
-        }
+    const storedId = localStorage.getItem('levelup_current_project_id');
+    if (storedId) {
+      const activeProj = list.find(p => String(p.id) === storedId);
+      if (activeProj) {
+        setCurrentProjectState(activeProj);
+        await loadProjectDetail(activeProj.id);
+        return;
       }
-      setCurrentProject(activeProj);
-    } else {
-      setCurrentProjectState(null);
-      setSprint(null);
     }
-  }, [isAuthenticated, loadProjects, currentProject, setCurrentProject]);
+    setCurrentProjectState(null);
+    setSprint(null);
+  }, [isAuthenticated, loadProjects, loadProjectDetail]);
 
   useEffect(() => {
     refreshData();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, refreshData]);
 
-  const updateSubtaskStatus = async (subtaskId: string, newStatus: TaskStatus) => {
+  const updateSubtaskStatus = async (subtaskId: number, newStatus: TaskStatus) => {
     try {
       await api.patch(`/tasks/${subtaskId}/status`, { status: newStatus });
       if (currentProject) {
@@ -292,94 +363,63 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } catch (err) {
       console.error('Failed to update subtask status', err);
+      throw err;
     }
   };
 
-  const addNewSubtask = async (requirementId: string, title: string, storyPoints: number, assigneeId?: string) => {
-    if (!sprint) return;
+  const addNewRequirement = async (title: string, description: string, color: string) => {
+    if (!currentProject) return;
     try {
-      await api.post('/tasks', {
+      await api.post(`/projects/${currentProject.id}/requirements`, {
+        title,
+        description,
+        color
+      });
+      await loadProjectDetail(currentProject.id);
+    } catch (err) {
+      console.error('Failed to add requirement', err);
+      throw err;
+    }
+  };
+
+  const addNewSubtask = async (requirementId: number, title: string, storyPoints: number, assigneeId?: number | null) => {
+    try {
+      await api.post(`/requirements/${requirementId}/subtasks`, {
         title,
         description: `Subtask for requirement ${requirementId}`,
         priority: 'MEDIUM',
         status: 'TODO',
         effortPoints: storyPoints,
         estimatedHours: storyPoints * 4,
-        sprintId: Number(sprint.id),
-        requirementId: Number(requirementId),
-        assigneeId: assigneeId && assigneeId.trim() !== '' ? Number(assigneeId) : null
+        assigneeId: assigneeId || null
       });
       if (currentProject) {
         await loadProjectDetail(currentProject.id);
       }
     } catch (err) {
       console.error('Failed to add subtask', err);
+      throw err;
     }
   };
 
   const createNewSprint = async (
-    title: string,
-    objectives: string,
+    objective: string,
     startDate: string,
     endDate: string,
-    pointsPlanned: number,
-    requirementsInput?: {
-      title: string;
-      subtasks: {
-        title: string;
-        storyPoints: number;
-        assigneeId?: string;
-      }[];
-    }[],
-    status?: 'ACTIVE' | 'PLANNED'
+    plannedStoryPoints: number,
+    requirementIds: number[]
   ) => {
     if (!currentProject) return;
     try {
-      const resolvedStatus = status || (sprint ? 'PLANNED' : 'ACTIVE');
-      const res = await api.post('/sprints', {
-        objective: objectives || title,
+      await api.post(`/projects/${currentProject.id}/sprints`, {
+        sprintObjective: objective,
         startDate,
         endDate,
-        sprintStatus: resolvedStatus,
-        pointsPlanned,
-        projectId: currentProject.id
+        plannedStoryPoints,
+        requirementIds,
+        sprintStatus: 'ACTIVE'
       });
-      const createdSprint = res.data;
-      const sprintId = createdSprint.sprintId;
-
-      if (requirementsInput && requirementsInput.length > 0) {
-        const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
-        for (let i = 0; i < requirementsInput.length; i++) {
-          const req = requirementsInput[i];
-          const color = COLORS[i % COLORS.length];
-          const reqRes = await api.post('/requirements', {
-            title: req.title || `Requirement ${i + 1}`,
-            description: '',
-            color,
-            sprintId
-          });
-          const createdReq = reqRes.data;
-          const requirementId = createdReq.id;
-
-          for (const sub of req.subtasks) {
-            const parsedAssigneeId = sub.assigneeId && sub.assigneeId.trim() !== ''
-              ? Number(sub.assigneeId)
-              : null;
-            await api.post('/tasks', {
-              title: sub.title || 'Untitled Subtask',
-              description: '',
-              priority: 'MEDIUM',
-              status: 'TODO',
-              effortPoints: sub.storyPoints || 0,
-              estimatedHours: (sub.storyPoints || 0) * 4,
-              sprintId,
-              requirementId,
-              assigneeId: parsedAssigneeId
-            });
-          }
-        }
-      }
-
+      await loadProjects(); // reload project lists
       await loadProjectDetail(currentProject.id);
     } catch (err) {
       console.error('Failed to create sprint', err);
@@ -387,7 +427,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const completeSprint = async (sprintId: string) => {
+  const completeSprint = async (sprintId: number) => {
     try {
       await api.patch(`/sprints/${sprintId}/complete`);
       if (currentProject) {
@@ -420,7 +460,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         name: res.data.name,
         description: res.data.description
       };
-      setProjects(prev => [...prev, newProj]);
+      await loadProjects();
       setCurrentProject(newProj);
       return newProj;
     } catch (err) {
@@ -429,20 +469,36 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const inviteMember = async (email: string) => {
+    if (!currentProject) return;
+    try {
+      await api.post(`/projects/${currentProject.id}/members`, { email });
+      await loadProjectDetail(currentProject.id);
+    } catch (err) {
+      console.error('Failed to invite member', err);
+      throw err;
+    }
+  };
+
   return (
     <SprintContext.Provider value={{
       projects,
+      ownedProjects,
+      memberProjects,
       currentProject,
       setCurrentProject,
       sprint,
       loading,
       members,
+      allProjectRequirements,
       refreshData,
       updateSubtaskStatus,
+      addNewRequirement,
       addNewSubtask,
       createNewSprint,
       completeSprint,
-      createProject
+      createProject,
+      inviteMember
     }}>
       {children}
     </SprintContext.Provider>

@@ -1,24 +1,19 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell } from 'recharts';
-import { Bell, Search, Sparkles, LogOut, Settings, User as UserIcon, ChevronDown } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { LogOut, ChevronDown, FolderOpen } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSprint } from '../../context/SprintContext';
 
-interface HeaderProps {
-  toggleAiPanel: () => void;
-  isAiPanelOpen: boolean;
-}
-
-const Header: React.FC<HeaderProps> = ({ toggleAiPanel, isAiPanelOpen }) => {
-  const { sprint, projects, currentProject, setCurrentProject, members } = useSprint();
+const Header: React.FC = () => {
+  const { sprint, currentProject, setCurrentProject } = useSprint();
   const healthScore = sprint ? sprint.healthScore : 100;
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close profile dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
@@ -32,10 +27,10 @@ const Header: React.FC<HeaderProps> = ({ toggleAiPanel, isAiPanelOpen }) => {
   const handleLogout = () => {
     setIsProfileOpen(false);
     logout();
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
-  // ---------- Sprint Timer — dynamic ----------
+  // ---------- Sprint Timer Calculations ----------
   const { daysLeft, totalDays, timePercent, timeColor } = useMemo(() => {
     if (!sprint) {
       return { daysLeft: 0, totalDays: 1, timePercent: 0, timeColor: '#475569' };
@@ -59,7 +54,7 @@ const Header: React.FC<HeaderProps> = ({ toggleAiPanel, isAiPanelOpen }) => {
     { name: 'Remaining', value: 100 - timePercent },
   ];
 
-  // ---------- Health Score ----------
+  // ---------- Health Score Data ----------
   const healthData = [
     { name: 'Score',     value: healthScore },
     { name: 'Remaining', value: 100 - healthScore },
@@ -69,164 +64,121 @@ const Header: React.FC<HeaderProps> = ({ toggleAiPanel, isAiPanelOpen }) => {
   else if (healthScore < 80) healthColor = '#f59e0b';
 
   return (
-    <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between px-5 z-10 sticky top-0">
-      {/* Project Workspace Dropdown Switcher */}
-      <div className="flex items-center gap-4">
-        <div className="flex flex-col min-w-0">
-          <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Project Workspace</span>
-          <div className="relative mt-0.5">
-            <select
-              value={currentProject?.id || ''}
-              onChange={(e) => {
-                const proj = projects.find(p => String(p.id) === e.target.value);
-                setCurrentProject(proj || null);
-              }}
-              className="bg-slate-800/80 border border-slate-700/60 text-slate-200 text-xs font-semibold rounded-lg pl-3 pr-8 py-1 outline-none appearance-none cursor-pointer hover:border-indigo-500 hover:text-slate-100 transition-all"
-            >
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-              {projects.length === 0 && (
-                <option value="">No projects found</option>
-              )}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
-              <ChevronDown size={12} />
-            </div>
+    <header className="h-16 bg-[#0F172A] border-b border-[#334155] flex items-center justify-between px-6 z-10 sticky top-0 shadow-md">
+      {/* Brand logo & workspace details */}
+      <div className="flex items-center gap-4 min-w-0">
+        <div 
+          onClick={() => setCurrentProject(null)}
+          className="flex items-center gap-2 font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-md">
+            <span className="text-indigo-400 text-sm font-black">L</span>
           </div>
+          <span className="text-sm font-extrabold uppercase tracking-widest hidden sm:inline-block">LevelUP</span>
         </div>
 
-        {sprint && (
-          <div className="hidden sm:flex flex-col border-l border-slate-800 pl-4 min-w-0">
-            <h1 className="text-xs font-semibold text-slate-300 truncate">{sprint.name}</h1>
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Active Sprint</span>
+        {currentProject && (
+          <div className="flex items-center gap-2 border-l border-slate-800 pl-4 min-w-0">
+            <span className="text-xs font-semibold text-slate-300 truncate max-w-[120px] md:max-w-[200px]">
+              {currentProject.name}
+            </span>
+            {sprint && (
+              <span className="hidden md:inline-block text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-medium truncate max-w-[100px]">
+                {sprint.name}
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Team Avatars */}
-        <div className="hidden lg:flex items-center -space-x-2">
-          {members.slice(0, 4).map(m => (
-            <img
-              key={m.id}
-              src={m.avatar}
-              alt={m.name}
-              title={`${m.name} — ${m.skills.join(', ')}`}
-              className="w-7 h-7 rounded-full border-2 border-slate-900 hover:border-indigo-500 transition-colors"
-            />
-          ))}
-        </div>
-
-        {/* Sprint Timer */}
-        <div className="flex items-center gap-2 bg-slate-800/60 px-3 py-1 rounded-xl border border-slate-700/40">
-          <div className="relative w-10 h-10 flex items-center justify-center">
-            <PieChart width={44} height={44}>
-              <Pie data={timeData} cx={18} cy={18} innerRadius={14} outerRadius={18} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                <Cell fill={timeColor} />
-                <Cell fill="#1e293b" />
-              </Pie>
-            </PieChart>
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ color: timeColor }}>
-              {daysLeft}d
-            </span>
-          </div>
-          <div className="hidden md:flex flex-col">
-            <span className="text-[11px] font-semibold text-slate-300 leading-tight">Timer</span>
-            <span className="text-[10px] text-slate-500 leading-tight">{daysLeft} of {totalDays} days</span>
-          </div>
-        </div>
-
-        {/* Health Score */}
-        <div className="flex items-center gap-2 bg-slate-800/60 px-3 py-1 rounded-xl border border-slate-700/40">
-          <div className="relative w-10 h-10 flex items-center justify-center">
-            <PieChart width={44} height={44}>
-              <Pie data={healthData} cx={18} cy={18} innerRadius={14} outerRadius={18} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                <Cell fill={healthColor} />
-                <Cell fill="#1e293b" />
-              </Pie>
-            </PieChart>
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ color: healthColor }}>
-              {healthScore}
-            </span>
-          </div>
-          <div className="hidden md:flex flex-col">
-            <span className="text-[11px] font-semibold text-slate-300 leading-tight">Health</span>
-            <span className="text-[10px] text-slate-500 leading-tight">Score</span>
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3 ml-1">
-          <button className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors" title="Search">
-            <Search size={18} />
-          </button>
-          <button className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors relative" title="Notifications">
-            <Bell size={18} />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
-          </button>
-          <button
-            onClick={toggleAiPanel}
-            title="AI Insights"
-            className={`p-1.5 rounded-lg transition-colors ${isAiPanelOpen ? 'bg-indigo-500/20 text-indigo-400' : 'text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10'}`}
-          >
-            <Sparkles size={18} />
-          </button>
-
-          {/* Profile Dropdown */}
-          <div className="relative" ref={profileRef}>
-            <button
-              onClick={() => setIsProfileOpen(v => !v)}
-              className="w-8 h-8 rounded-full border-2 border-slate-700 overflow-hidden hover:border-indigo-500 transition-colors focus:outline-none"
-            >
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-[10px] font-bold text-white">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                </div>
-              )}
-            </button>
-
-            {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-slate-800 rounded-xl border border-slate-700 shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="px-4 py-3 border-b border-slate-700 bg-slate-800/80">
-                  <p className="text-sm font-medium text-slate-100 truncate">{user?.firstName} {user?.lastName}</p>
-                  <p className="text-xs text-slate-400 truncate">{user?.email}</p>
-                  {user?.organizationName && (
-                    <p className="text-[10px] text-slate-500 mt-0.5 truncate">{user.organizationName}</p>
-                  )}
-                </div>
-                <div className="py-1">
-                  <Link
-                    to="/dashboard/profile"
-                    onClick={() => setIsProfileOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/60 hover:text-slate-100 transition-colors"
-                  >
-                    <UserIcon size={15} />
-                    Profile Settings
-                  </Link>
-                  <Link
-                    to="/dashboard"
-                    onClick={() => setIsProfileOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/60 hover:text-slate-100 transition-colors"
-                  >
-                    <Settings size={15} />
-                    Preferences
-                  </Link>
-                </div>
-                <div className="border-t border-slate-700 py-1">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <LogOut size={15} />
-                    Sign out
-                  </button>
-                </div>
+      <div className="flex items-center gap-4 shrink-0">
+        {/* Dynamic Sprint details inside header only when currentProject is active */}
+        {currentProject && sprint && (
+          <>
+            {/* Sprint Timer */}
+            <div className="hidden md:flex items-center gap-2 bg-slate-900/60 px-3 py-1 rounded-xl border border-slate-800">
+              <div className="relative w-8 h-8 flex items-center justify-center">
+                <PieChart width={36} height={36}>
+                  <Pie data={timeData} cx={14} cy={14} innerRadius={10} outerRadius={14} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
+                    <Cell fill={timeColor} />
+                    <Cell fill="#1e293b" />
+                  </Pie>
+                </PieChart>
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold" style={{ color: timeColor }}>
+                  {daysLeft}d
+                </span>
               </div>
-            )}
-          </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-semibold text-slate-350 leading-tight">Sprint Timer</span>
+                <span className="text-[9px] text-slate-550 leading-tight">{daysLeft} of {totalDays} days</span>
+              </div>
+            </div>
+
+            {/* Health Score */}
+            <div className="hidden md:flex items-center gap-2 bg-slate-900/60 px-3 py-1 rounded-xl border border-slate-800">
+              <div className="relative w-8 h-8 flex items-center justify-center">
+                <PieChart width={36} height={36}>
+                  <Pie data={healthData} cx={14} cy={14} innerRadius={10} outerRadius={14} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
+                    <Cell fill={healthColor} />
+                    <Cell fill="#1e293b" />
+                  </Pie>
+                </PieChart>
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold" style={{ color: healthColor }}>
+                  {healthScore}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-semibold text-slate-350 leading-tight">Sprint Health</span>
+                <span className="text-[9px] text-slate-550 leading-tight">Score Rating</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Profile Dropdown */}
+        <div className="relative" ref={profileRef}>
+          <button
+            onClick={() => setIsProfileOpen(v => !v)}
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-800 transition-colors focus:outline-none cursor-pointer"
+          >
+            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white uppercase shrink-0">
+              {user?.fullName.charAt(0)}
+            </div>
+            <span className="text-xs text-slate-300 font-semibold hidden md:inline truncate max-w-[100px]">
+              {user?.fullName.split(' ')[0]}
+            </span>
+            <ChevronDown size={12} className="text-slate-500" />
+          </button>
+
+          {isProfileOpen && (
+            <div className="absolute right-0 mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50">
+              <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60">
+                <p className="text-xs font-bold text-slate-200 truncate">{user?.fullName}</p>
+                <p className="text-[10px] text-slate-500 truncate mt-0.5">{user?.email}</p>
+              </div>
+              <div className="py-1">
+                <button
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setCurrentProject(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-300 hover:bg-slate-850 hover:text-slate-100 transition-colors"
+                >
+                  <FolderOpen size={14} className="text-indigo-400" />
+                  Workspace Dashboard
+                </button>
+              </div>
+              <div className="border-t border-slate-800 py-1">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut size={14} />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

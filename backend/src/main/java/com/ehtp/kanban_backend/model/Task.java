@@ -13,6 +13,7 @@ import java.util.List;
 @Table(name = "subtasks")
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Task extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -44,7 +45,7 @@ public class Task extends BaseAudit {
     @Column(nullable = false)
     private LocalDateTime statusChangedAt;
 
-    @JsonIgnoreProperties({"tasks", "aiInsights", "project"})
+    @JsonIgnoreProperties({"tasks", "aiInsights", "project", "requirements"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sprint_id")
     private Sprint sprint;

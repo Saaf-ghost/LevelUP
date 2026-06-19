@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Clock, AlertCircle } from 'lucide-react';
-import { type Subtask, mockRequirements, getTeamMember } from '../../mockData';
+import { type Subtask, useSprint } from '../../context/SprintContext';
 import clsx from 'clsx';
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 }
 
 const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
+  const { sprint } = useSprint();
   const {
     setNodeRef,
     attributes,
@@ -28,9 +29,16 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
     transform: CSS.Transform.toString(transform),
   };
 
-  const isBottleneck = task.timeInColumn > 48;
-  const requirement = mockRequirements.find(r => r.id === task.requirementId);
-  const assignee = getTeamMember(task.assigneeId);
+  // Compute time in column dynamically
+  // @ts-ignore
+  const statusChangedAt = task.statusChangedAt;
+  const now = new Date().getTime();
+  const changedAt = statusChangedAt ? new Date(statusChangedAt).getTime() : now;
+  const timeInColumn = Math.max(0, Math.round((now - changedAt) / (1000 * 60 * 60))); // in hours
+
+  const isBottleneck = timeInColumn > 48;
+  const requirement = sprint?.requirements.find(r => r.id === task.requirementId);
+  const assignee = task.assignee;
 
   if (isDragging && !isOverlay) {
     return (
@@ -49,7 +57,7 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
       {...attributes}
       {...listeners}
       className={clsx(
-        'bg-slate-800/80 rounded-lg border group cursor-grab active:cursor-grabbing hover:border-slate-600 transition-all duration-150 relative overflow-hidden',
+        'bg-[#1E293B] rounded-lg border group cursor-grab active:cursor-grabbing hover:border-slate-650 transition-all duration-150 relative overflow-hidden',
         isOverlay
           ? 'shadow-2xl shadow-indigo-500/20 border-indigo-500 scale-[1.03]'
           : 'border-slate-700/60 shadow-sm',
@@ -58,30 +66,30 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
       {/* Requirement stripe */}
       <div
         className="absolute left-0 top-0 bottom-0 w-1"
-        style={{ backgroundColor: isBottleneck ? '#ef4444' : (requirement?.color ?? '#475569') }}
+        style={{ backgroundColor: isBottleneck ? '#ef4444' : (requirement?.color ?? '#6366F1') }}
       />
 
       <div className="p-3 pl-4">
         {/* Requirement label + time badge */}
         <div className="flex items-center justify-between mb-1.5">
           <span
-            className="text-[10px] font-semibold uppercase tracking-wider truncate"
-            style={{ color: requirement?.color ?? '#94a3b8' }}
+            className="text-[10px] font-semibold uppercase tracking-wider truncate max-w-[130px]"
+            style={{ color: requirement?.color ?? '#818cf8' }}
             title={requirement?.title}
           >
             {requirement?.title ?? 'Unlinked'}
           </span>
 
           {isBottleneck && (
-            <span className="flex items-center gap-0.5 text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0" title="Bottleneck">
+            <span className="flex items-center gap-0.5 text-red-405 bg-red-500/10 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0" title="Bottleneck">
               <AlertCircle size={10} />
-              {task.timeInColumn}h
+              {timeInColumn}h
             </span>
           )}
-          {!isBottleneck && task.timeInColumn > 0 && (
+          {!isBottleneck && timeInColumn > 0 && (
             <span className="flex items-center gap-0.5 text-slate-500 text-[10px] shrink-0">
               <Clock size={10} />
-              {task.timeInColumn}h
+              {timeInColumn}h
             </span>
           )}
         </div>
@@ -96,13 +104,10 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
           <div className="flex items-center gap-1.5">
             {assignee ? (
               <>
-                <img
-                  src={assignee.avatar}
-                  alt={assignee.name}
-                  title={`${assignee.name} — ${assignee.skills.join(', ')}`}
-                  className="w-5 h-5 rounded-full border border-slate-700"
-                />
-                <span className="text-[10px] text-slate-400 hidden sm:inline">{assignee.name.split(' ')[0]}</span>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-[8px] font-bold text-white shrink-0" title={assignee.fullName}>
+                  {assignee.fullName.charAt(0)}
+                </div>
+                <span className="text-[10px] text-slate-400 hidden sm:inline">{assignee.fullName.split(' ')[0]}</span>
               </>
             ) : (
               <div className="w-5 h-5 rounded-full bg-slate-700 border border-dashed border-slate-600 flex items-center justify-center text-[9px] text-slate-500">
@@ -112,7 +117,7 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
           </div>
 
           <span className="text-[10px] font-semibold text-slate-400 bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-700/40">
-            {task.storyPoints} SP
+            {task.effortPoints} SP
           </span>
         </div>
       </div>

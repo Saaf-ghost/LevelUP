@@ -11,6 +11,7 @@ import lombok.EqualsAndHashCode;
 })
 @Data
 @EqualsAndHashCode(callSuper = false)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ProjectMembership extends BaseAudit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

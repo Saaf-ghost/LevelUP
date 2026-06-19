@@ -10,4 +10,5 @@ import java.util.List;
 public interface RequirementRepository extends JpaRepository<Requirement, Long> {
     List<Requirement> findBySprintSprintId(Long sprintId);
     List<Requirement> findBySprintProjectId(Long projectId);
+    List<Requirement> findByProjectId(Long projectId);
 }

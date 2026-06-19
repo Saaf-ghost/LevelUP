@@ -8,21 +8,30 @@ interface Props {
 
 const AddSubtaskModal: React.FC<Props> = ({ onClose }) => {
   const { sprint, addNewSubtask, members } = useSprint();
-  const [requirementId, setRequirementId] = useState(sprint?.requirements[0]?.id || '');
+  const [requirementId, setRequirementId] = useState<number | ''>(sprint?.requirements[0]?.id || '');
   const [title, setTitle] = useState('');
   const [storyPoints, setStoryPoints] = useState(1);
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeId, setAssigneeId] = useState<string>('');
 
   if (!sprint) {
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requirementId || !title.trim()) return;
+    if (requirementId === '' || !title.trim()) return;
     
-    addNewSubtask(requirementId, title.trim(), storyPoints, assigneeId || undefined);
-    onClose();
+    try {
+      await addNewSubtask(
+        requirementId,
+        title.trim(),
+        storyPoints,
+        assigneeId ? Number(assigneeId) : null
+      );
+      onClose();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -42,7 +51,7 @@ const AddSubtaskModal: React.FC<Props> = ({ onClose }) => {
             <label className="text-xs font-medium text-slate-300">Parent Requirement (Epic)</label>
             <select
               value={requirementId}
-              onChange={e => setRequirementId(e.target.value)}
+              onChange={e => setRequirementId(Number(e.target.value))}
               className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 cursor-pointer"
               required
             >
@@ -90,7 +99,7 @@ const AddSubtaskModal: React.FC<Props> = ({ onClose }) => {
                 <option value="">Unassigned</option>
                 {members.map(m => (
                   <option key={m.id} value={m.id}>
-                    {m.name}
+                    {m.fullName}
                   </option>
                 ))}
               </select>

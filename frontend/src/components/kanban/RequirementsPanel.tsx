@@ -1,11 +1,16 @@
 import React from 'react';
 import { useSprint } from '../../context/SprintContext';
-import { COLUMN_LABELS } from '../../mockData';
-import type { Subtask } from '../../mockData';
+import type { Subtask } from '../../context/SprintContext';
 
 interface Props {
   tasks: Subtask[];
 }
+
+const COLUMN_LABELS = {
+  TODO: 'To Do',
+  IN_PROGRESS: 'In Progress',
+  DONE: 'Done'
+};
 
 const RequirementsPanel: React.FC<Props> = ({ tasks }) => {
   const { sprint } = useSprint();
@@ -16,8 +21,8 @@ const RequirementsPanel: React.FC<Props> = ({ tasks }) => {
     <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
       {sprint.requirements.map(req => {
         const linked = tasks.filter(t => t.requirementId === req.id);
-        const totalPts = linked.reduce((s, t) => s + t.storyPoints, 0);
-        const donePts  = linked.filter(t => t.status === 'DONE').reduce((s, t) => s + t.storyPoints, 0);
+        const totalPts = linked.reduce((s, t) => s + t.effortPoints, 0);
+        const donePts  = linked.filter(t => t.status === 'DONE').reduce((s, t) => s + t.effortPoints, 0);
         const progress = totalPts > 0 ? Math.round((donePts / totalPts) * 100) : 0;
 
         // Compute live status
