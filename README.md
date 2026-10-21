@@ -46,6 +46,9 @@ BoostUP is a modular monolith. Controllers own HTTP concerns, services own domai
 
 The core domain is intentionally independent of any external integration. New capabilities can be added as separate modules that consume the existing project, sprint, and task services without changing the core model.
 
+### Optional AI service
+`ai-service/` contains a standalone FastAPI scaffold for future AI capabilities. It is not required by the core API or frontend and is not wired into the root Docker Compose stack. See [ai-service/README.md](ai-service/README.md) for setup and extension points.
+
 ## Local development
 See [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md) for setup, ports, and test commands.
 

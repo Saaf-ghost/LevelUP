@@ -78,6 +78,19 @@ cd frontend
 npm run build
 ```
 
+## Optional: AI service
+The standalone FastAPI scaffold in `ai-service/` is not required for the core BoostUP application.
+
+```powershell
+cd ai-service
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8090
+```
+
+Health check: `http://localhost:8090/api/v1/health`
+Swagger UI: `http://localhost:8090/docs`
+
 ## Troubleshooting
 - **Database connection failed:** confirm Docker is running and `DB_URL` uses port `55432`.
 - **Port already in use:** stop the process using `8082`, `5173`, or `55432`, or change `PORT` for the backend.
