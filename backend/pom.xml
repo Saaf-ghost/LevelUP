@@ -8,11 +8,11 @@
 		<version>3.3.5</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.yassine</groupId>
-	<artifactId>kanban-backend</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<groupId>com.boostup</groupId>
+	<artifactId>boostup-api</artifactId>
+	<version>0.1.0-SNAPSHOT</version>
+	<name>BoostUP API</name>
+	<description>BoostUP core agile management API</description>
 	<url/>
 	<licenses>
 		<license/>

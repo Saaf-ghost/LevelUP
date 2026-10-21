@@ -1,64 +1,85 @@
-# How to Run LevelUP
+# Running BoostUP
 
-Follow these direct and concise steps to get the full application (Database, Backend, and Frontend) running smoothly on your local machine.
+BoostUP is a Spring Boot API with a Vite + React frontend and a PostgreSQL database.
 
-### Prerequisites
-Make sure you have installed:
-- **Docker & Docker Compose** (for the database)
-- **Java 21** (for the Spring Boot backend)
-- **Node.js & npm** (for the Vite React frontend)
+## Prerequisites
+- Docker and Docker Compose
+- Java 21
+- Node.js 20+ and npm
 
----
+## 1. Configure the environment
+Create a local `.env` file from the example:
 
-### Step 1: Start the Database (PostgreSQL)
-The application relies on a PostgreSQL database containerized with Docker.
+```bash
+cp .env.example .env
+```
 
-1. Open your terminal at the **root** of the project (`LevelUP` folder).
-2. Start the database in the background:
-   ```bash
-   docker-compose up -d
-   ```
-*(This spins up the database container and maps it to port `55432` on your machine, as defined in `docker-compose.yml`.)*
+The `.env` file is intentionally untracked. Never commit real credentials or signing secrets.
 
----
+Default local values:
 
-### Step 2: Start the Backend (Spring Boot)
-The backend is built with Spring Boot and managed with Maven.
+| Variable | Value |
+| :--- | :--- |
+| `DB_NAME` | `boostup` |
+| `DB_URL` | `jdbc:postgresql://localhost:55432/boostup` |
+| `DB_USERNAME` | `boostup` |
+| `DB_PASSWORD` | `boostup` |
+| `VITE_API_BASE_URL` | `http://localhost:8082/api` |
 
-1. Open a **new terminal** and navigate to the `backend` directory:
-   ```bash
-   cd backend
-   ```
-2. Run the application using the included Maven wrapper:
-   ```bash
-   ./mvnw spring-boot:run
-   ```
-   *(On Windows Command Prompt, use `mvnw spring-boot:run`)*
+Change `JWT_SECRET` and the database password before using a shared or production environment.
 
-*(The backend will launch on port **8082** by default and automatically connect to your PostgreSQL database).*
+## 2. Start PostgreSQL
+From the repository root:
 
----
+```bash
+docker compose up -d
+```
 
-### Step 3: Start the Frontend (React / Vite)
-The frontend is a React application powered by Vite and Tailwind CSS.
+This starts PostgreSQL on host port `55432` with a persistent `boostup-postgres-data` volume.
 
-1. Open a **new terminal** and navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
-2. Install the required Node dependencies (only needed the first time):
-   ```bash
-   npm install
-   ```
-3. Start the Vite development server:
-   ```bash
-   npm run dev
-   ```
-*(The application will be accessible in your browser at **http://localhost:5173**).*
+## 3. Start the backend
+```bash
+cd backend
+./mvnw spring-boot:run
+```
 
----
+On Windows Command Prompt or PowerShell:
 
-### 💡 Important Note on Environment Variables
-The project uses a `.env` file at the root level for configuration. 
-- If the frontend fails to connect to the backend, ensure your `.env` file is loaded or copy it into the `frontend/` directory so Vite can read the `VITE_API_BASE_URL`.
-- If the backend fails to connect to the database, verify that the `DB_URL` corresponds to `jdbc:postgresql://localhost:55432/levelup`.
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+```
+
+The API starts on `http://localhost:8082`.
+
+## 4. Start the frontend
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+## 5. Run checks
+Backend tests:
+
+```powershell
+cd backend
+.\mvnw.cmd test
+```
+
+Frontend production build:
+
+```powershell
+cd frontend
+npm run build
+```
+
+## Troubleshooting
+- **Database connection failed:** confirm Docker is running and `DB_URL` uses port `55432`.
+- **Port already in use:** stop the process using `8082`, `5173`, or `55432`, or change `PORT` for the backend.
+- **Frontend cannot reach the API:** verify `VITE_API_BASE_URL` and that the backend is running.
+- **Old database volume after the rename:** the local Docker volume is now `boostup-postgres-data`. If you need the previous data, migrate it before removing the old volume.

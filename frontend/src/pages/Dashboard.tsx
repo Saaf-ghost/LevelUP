@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSprint } from '../context/SprintContext';
+import type { TaskStatus } from '../context/SprintContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Plus,
@@ -7,12 +8,10 @@ import {
   TrendingDown,
   BarChart4,
   AlertTriangle,
-  Zap,
   Users,
   ChevronRight,
   ChevronDown,
   Calendar,
-  Sparkles,
   Mail,
   UserPlus,
   Play,
@@ -255,6 +254,25 @@ export const Dashboard: React.FC = () => {
       { name: 'In Progress', points: ip, color: '#F59E0B' },
       { name: 'Done', points: done, color: '#10B981' }
     ];
+  }, [sprint]);
+
+  // Sprint progress summary for the metrics view
+  const sprintProgress = useMemo(() => {
+    if (!sprint) {
+      return { totalTasks: 0, doneTasks: 0, inProgressTasks: 0, todoTasks: 0, totalPoints: 0, donePoints: 0, completionPct: 0 };
+    }
+    const doneTasks = sprint.subtasks.filter(t => t.status === 'DONE');
+    const totalPoints = sprint.subtasks.reduce((sum, t) => sum + t.effortPoints, 0);
+    const donePoints = doneTasks.reduce((sum, t) => sum + t.effortPoints, 0);
+    return {
+      totalTasks: sprint.subtasks.length,
+      doneTasks: doneTasks.length,
+      inProgressTasks: sprint.subtasks.filter(t => t.status === 'IN_PROGRESS').length,
+      todoTasks: sprint.subtasks.filter(t => t.status === 'TODO').length,
+      totalPoints,
+      donePoints,
+      completionPct: totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0
+    };
   }, [sprint]);
 
   // Expand newly added requirements in state
@@ -939,7 +957,7 @@ export const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* TAB C: Metrics & AI Insights */}
+          {/* TAB C: Sprint Metrics */}
           {activeTab === 'C' && (
             <div className="space-y-8">
               {sprint ? (
@@ -1007,7 +1025,7 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* AI Insights & standup summaries */}
+                  {/* Sprint health and progress summary */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Radial Health Score Gauge */}
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-4">
@@ -1038,56 +1056,42 @@ export const Dashboard: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* AI Alerts & standups */}
+                    {/* Sprint progress summary */}
                     <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-                      <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                          <Zap size={18} className="text-indigo-400" />
-                          Gemini AI Risk Assessment & standup
-                        </h3>
+                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <BarChart4 size={18} className="text-indigo-400" />
+                        Sprint Progress
+                      </h3>
 
-                        {/* List of insights */}
-                        <div className="space-y-3">
-                          {sprint.insights.map(ins => (
-                            <div
-                              key={ins.id}
-                              className={`p-4 rounded-xl border flex gap-3 items-start ${
-                                ins.insightType === 'RISK_ALERT'
-                                  ? 'bg-red-500/5 border-red-500/10'
-                                  : 'bg-indigo-500/5 border-indigo-500/10'
-                              }`}
-                            >
-                              <div className="mt-0.5">
-                                {ins.insightType === 'RISK_ALERT' ? (
-                                  <AlertTriangle className="text-red-400 shrink-0" size={16} />
-                                ) : (
-                                  <Sparkles className="text-indigo-400 shrink-0" size={16} />
-                                )}
-                              </div>
-                              <div className="space-y-1">
-                                <h4 className="text-xs font-bold text-slate-200">
-                                  {ins.insightType === 'RISK_ALERT' ? 'Sprint Bottleneck Alert' : 'Resource Reassignment Hint'}
-                                </h4>
-                                <p className="text-xs text-slate-300 leading-relaxed">{ins.explanation}</p>
-                              </div>
-                            </div>
-                          ))}
-
-                          {sprint.insights.length === 0 && (
-                            <div className="text-xs text-slate-500 italic p-4 bg-slate-950/60 rounded-xl text-center">
-                              No active risks detected. Sprint velocity is nominal.
-                            </div>
-                          )}
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+                          <span className="block text-xl font-extrabold text-blue-400">{sprintProgress.todoTasks}</span>
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold">To Do</span>
+                        </div>
+                        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+                          <span className="block text-xl font-extrabold text-amber-400">{sprintProgress.inProgressTasks}</span>
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold">In Progress</span>
+                        </div>
+                        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+                          <span className="block text-xl font-extrabold text-emerald-400">{sprintProgress.doneTasks}</span>
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold">Done</span>
                         </div>
                       </div>
 
-                      {/* Automated Standup Summary */}
-                      <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">n8n Standup Automation Sync</h4>
-                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">
-                          {sprint.insights[0]?.automatedStandupSummary || 
-                            `LEVELUP STANDUP SUMMARY AUTOMATION (n8n node ID: sprint-${sprint.id})\n------------------------------------------------------------\n* Done tasks: ${sprint.subtasks.filter(t => t.status === 'DONE').length} tasks completed successfully.\n* In progress: ${sprint.subtasks.filter(t => t.status === 'IN_PROGRESS').length} items currently locked in development.\n* Next items: backlogs queue has ${sprint.subtasks.filter(t => t.status === 'TODO').length} tasks.\n\nAI Standup Assessment:\nSprint velocity is running at 94% alignment. Daily standup checklist generated automatically by the pipeline node.`}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                          <span>Story point completion</span>
+                          <span>{sprintProgress.donePoints} / {sprintProgress.totalPoints} SP</span>
                         </div>
+                        <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                          <div
+                            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                            style={{ width: `${sprintProgress.completionPct}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          {sprintProgress.completionPct}% of committed story points are complete across {sprintProgress.totalTasks} tasks.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1226,7 +1230,7 @@ export const Dashboard: React.FC = () => {
                                         <div className="text-[9px] text-slate-500 truncate">{reqTitle}</div>
                                       </div>
                                       <div className="flex items-center gap-2 shrink-0">
-                                        <span className={`text-[8px] font-bold border px-1.5 py-0.5 rounded uppercase tracking-wider ${statusBadge[t.status]}`}>
+                                        <span className={`text-[8px] font-bold border px-1.5 py-0.5 rounded uppercase tracking-wider ${statusBadge[t.status as TaskStatus]}`}>
                                           {t.status.replace('_', ' ')}
                                         </span>
                                         <span className="text-[9px] font-bold bg-slate-900 px-1 py-0.5 rounded border border-slate-800 text-slate-400">

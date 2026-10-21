@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = useCallback(() => {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_USER_KEY);
-    localStorage.removeItem('levelup_current_project_id');
+    localStorage.removeItem('boostup_current_project_id');
     setUser(null);
     setRole('VIEWER');
     setIsAuthenticated(false);

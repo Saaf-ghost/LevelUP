@@ -70,7 +70,7 @@ const Register: React.FC = () => {
         <div className="relative z-10">
           <div className="flex flex-col items-center mb-8">
             <h2 className="text-2xl font-bold text-slate-100 mb-2">Create an Account</h2>
-            <p className="text-slate-400 text-sm">Join LevelUP today</p>
+            <p className="text-slate-400 text-sm">Join BoostUP today</p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-4">

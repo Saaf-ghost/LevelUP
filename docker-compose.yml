@@ -1,15 +1,15 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: levelup-postgres
+    container_name: boostup-postgres
     environment:
-      POSTGRES_DB: levelup
-      POSTGRES_USER: ${DB_USERNAME:-levelup}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-levelup}
+      POSTGRES_DB: ${DB_NAME:-boostup}
+      POSTGRES_USER: ${DB_USERNAME:-boostup}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-boostup}
     ports:
       - "55432:5432"
     volumes:
-      - levelup-postgres-data:/var/lib/postgresql/data
+      - boostup-postgres-data:/var/lib/postgresql/data
 
 volumes:
-  levelup-postgres-data:
+  boostup-postgres-data:

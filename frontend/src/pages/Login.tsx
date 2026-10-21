@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('owner@levelup.com');
+  const [email, setEmail] = useState('owner@boostup.com');
   const [password, setPassword] = useState('password');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -42,7 +42,7 @@ const Login: React.FC = () => {
               <span className="text-indigo-400 text-xl font-bold">L</span>
             </div>
             <h2 className="text-2xl font-bold text-slate-100 mb-2">Welcome Back</h2>
-            <p className="text-slate-400 text-sm">Sign in to continue to LevelUP</p>
+            <p className="text-slate-400 text-sm">Sign in to continue to BoostUP</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">

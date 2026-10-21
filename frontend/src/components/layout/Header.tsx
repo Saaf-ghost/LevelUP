@@ -72,9 +72,9 @@ const Header: React.FC = () => {
           className="flex items-center gap-2 font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 hover:opacity-90 transition-opacity cursor-pointer"
         >
           <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-md">
-            <span className="text-indigo-400 text-sm font-black">L</span>
+            <span className="text-indigo-400 text-sm font-black">B</span>
           </div>
-          <span className="text-sm font-extrabold uppercase tracking-widest hidden sm:inline-block">LevelUP</span>
+          <span className="text-sm font-extrabold uppercase tracking-widest hidden sm:inline-block">BoostUP</span>
         </div>
 
         {currentProject && (

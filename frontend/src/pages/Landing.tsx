@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { BrainCircuit, Activity, Zap, CheckCircle2 } from 'lucide-react';
+import { Columns3, ListChecks, Users, Zap } from 'lucide-react';
 
 const Landing: React.FC = () => {
   return (
@@ -8,9 +8,9 @@ const Landing: React.FC = () => {
       <header className="px-8 py-6 flex justify-between items-center border-b border-slate-800">
         <div className="flex items-center gap-2 text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">
           <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-            <span className="text-indigo-400">L</span>
+            <span className="text-indigo-400">B</span>
           </div>
-          LevelUP
+          BoostUP
         </div>
         <div className="flex gap-4">
           <Link to="/login" className="px-4 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">Log In</Link>
@@ -24,12 +24,12 @@ const Landing: React.FC = () => {
         </div>
         
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8">
-          Manage Projects with <br className="hidden md:block"/>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500">AI Intelligence</span>
+          Ship Faster with <br className="hidden md:block"/>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500">Real-Time Agile</span>
         </h1>
         
         <p className="text-xl text-slate-400 max-w-2xl mb-12">
-          LevelUP is a collaborative project management platform that combines traditional agile tools with real-time performance analytics and AI-driven insights to keep your team at peak velocity.
+          BoostUP brings real-time Kanban boards, backlog planning, sprint lifecycle management, and team roles into one focused workspace built for delivery teams.
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 mb-20">
@@ -43,9 +43,9 @@ const Landing: React.FC = () => {
 
         <div className="grid md:grid-cols-3 gap-8 w-full">
           {[
-            { icon: <Activity size={24} className="text-emerald-400" />, title: "Sprint Health Score", desc: "Real-time composite metrics evaluating velocity, workload, and timing." },
-            { icon: <BrainCircuit size={24} className="text-indigo-400" />, title: "Gemini AI Insights", desc: "Proactive risk detection and smart reassignment suggestions." },
-            { icon: <CheckCircle2 size={24} className="text-purple-400" />, title: "Interactive Kanban", desc: "Frictionless drag-and-drop workflows with bottleneck highlighting." }
+            { icon: <Columns3 size={24} className="text-emerald-400" />, title: "Real-Time Kanban", desc: "Drag-and-drop columns that keep every teammate in sync." },
+            { icon: <ListChecks size={24} className="text-indigo-400" />, title: "Backlog & Sprints", desc: "User stories, sprint scope, and burndown tracking in one flow." },
+            { icon: <Users size={24} className="text-purple-400" />, title: "Team & Roles", desc: "Owner, manager, developer, and viewer permissions per project." }
           ].map((feature, i) => (
             <div key={i} className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50 text-left hover:border-slate-600 transition-colors">
               <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center mb-4">

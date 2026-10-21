@@ -16,7 +16,6 @@ import {
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import type { Subtask, TaskStatus } from '../../context/SprintContext';
-import { useAuth } from '../../context/AuthContext';
 import { useSprint } from '../../context/SprintContext';
 import { LayoutTemplate, ListChecks, RotateCcw } from 'lucide-react';
 import KanbanColumn from './KanbanColumn';
@@ -30,9 +29,6 @@ const KanbanBoard: React.FC = () => {
   const [tasks, setTasks] = useState<Subtask[]>([]);
   const [activeTask, setActiveTask] = useState<Subtask | null>(null);
   const [isReqPanelOpen, setIsReqPanelOpen] = useState(false);
-  const { role } = useAuth();
-
-  const canAddTask = role !== 'VIEWER';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -68,12 +64,12 @@ const KanbanBoard: React.FC = () => {
 
     if (isOverTask) {
       setTasks(prev => {
-        const ai = prev.findIndex(t => t.id === active.id);
-        const oi = prev.findIndex(t => t.id === over.id);
-        if (ai !== -1 && oi !== -1 && prev[ai].status !== prev[oi].status) {
+        const activeIndex = prev.findIndex(t => t.id === active.id);
+        const overIndex = prev.findIndex(t => t.id === over.id);
+        if (activeIndex !== -1 && overIndex !== -1 && prev[activeIndex].status !== prev[overIndex].status) {
           const next = [...prev];
-          next[ai] = { ...next[ai], status: prev[oi].status };
-          return arrayMove(next, ai, oi);
+          next[activeIndex] = { ...next[activeIndex], status: prev[overIndex].status };
+          return arrayMove(next, activeIndex, overIndex);
         }
         return prev;
       });
@@ -81,10 +77,10 @@ const KanbanBoard: React.FC = () => {
 
     if (isOverColumn) {
       setTasks(prev => {
-        const ai = prev.findIndex(t => t.id === active.id);
-        if (ai !== -1) {
+        const activeIndex = prev.findIndex(t => t.id === active.id);
+        if (activeIndex !== -1) {
           const next = [...prev];
-          next[ai] = { ...next[ai], status: over.id as TaskStatus };
+          next[activeIndex] = { ...next[activeIndex], status: over.id as TaskStatus };
           return next;
         }
         return prev;

@@ -51,18 +51,6 @@ export interface Subtask {
   statusChangedAt?: string;
 }
 
-export interface AiInsight {
-  id: number;
-  explanation: string;
-  confidenceScore: number;
-  acknowledged: boolean;
-  insightType: 'RISK_ALERT' | 'REASSIGNMENT_SUGGESTION' | 'RETROSPECTIVE';
-  sprintHealthScore: number;
-  riskLevel: string;
-  bottlenecksJson?: string;
-  automatedStandupSummary?: string;
-}
-
 export interface SprintInfo {
   sprintId: number;
   objective: string;
@@ -83,7 +71,6 @@ export interface SprintData {
   endDate: string;
   requirements: Requirement[];
   subtasks: Subtask[];
-  insights: AiInsight[];
   sprintStatus: 'PLANNED' | 'ACTIVE' | 'DONE';
 }
 
@@ -270,30 +257,10 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Requirements inside active sprint
         const sprintRequirements = mappedReqs.filter(r => r.sprintId === activeSprint.sprintId);
 
-        // Fetch AI Insights
-        let mappedInsights: AiInsight[] = [];
-        try {
-          const insightRes = await api.get<any[]>(`/ai/sprint/${activeSprint.sprintId}`);
-          mappedInsights = insightRes.data.map(ins => ({
-            id: ins.id,
-            explanation: ins.explanation,
-            confidenceScore: ins.confidenceScore,
-            acknowledged: ins.acknowledged,
-            insightType: ins.insightType,
-            sprintHealthScore: ins.sprintHealthScore || 100,
-            riskLevel: ins.riskLevel || 'LOW',
-            bottlenecksJson: ins.bottlenecksJson,
-            automatedStandupSummary: ins.automatedStandupSummary
-          }));
-        } catch (insErr) {
-          console.warn('Failed to load AI Insights', insErr);
-        }
-
-        // Fetch Health Score
+        // Fetch the deterministic sprint health score from the metrics endpoint.
         let healthScore = 100;
         try {
           const metricsRes = await api.get<any>(`/projects/${projectId}/metrics`);
-          // The backend metrics map includes "healthScore" or active sprint metrics
           healthScore = metricsRes.data.activeSprintHealthScore || metricsRes.data.healthScore || 100;
         } catch (healthErr) {
           console.warn('Failed to load health score from metrics', healthErr);
@@ -308,7 +275,6 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           endDate: activeSprint.endDate,
           requirements: sprintRequirements,
           subtasks: mappedSubtasks,
-          insights: mappedInsights,
           sprintStatus: activeSprint.sprintStatus
         });
       } else {
@@ -325,10 +291,10 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setCurrentProject = useCallback((project: Project | null) => {
     setCurrentProjectState(project);
     if (project) {
-      localStorage.setItem('levelup_current_project_id', String(project.id));
+      localStorage.setItem('boostup_current_project_id', String(project.id));
       loadProjectDetail(project.id);
     } else {
-      localStorage.removeItem('levelup_current_project_id');
+      localStorage.removeItem('boostup_current_project_id');
       setSprint(null);
       setAllProjectRequirements([]);
       setMembers([]);
@@ -338,7 +304,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshData = useCallback(async () => {
     if (!isAuthenticated) return;
     const list = await loadProjects();
-    const storedId = localStorage.getItem('levelup_current_project_id');
+    const storedId = localStorage.getItem('boostup_current_project_id');
     if (storedId) {
       const activeProj = list.find(p => String(p.id) === storedId);
       if (activeProj) {
