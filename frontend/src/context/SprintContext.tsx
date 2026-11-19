@@ -8,7 +8,7 @@ export interface User {
   id: number;
   email: string;
   fullName: string;
-  role: 'OWNER' | 'MEMBER' | 'VIEWER' | 'ADMIN';
+  role: 'OWNER' | 'MEMBER';
   capacityPoints: number;
 }
 
@@ -116,7 +116,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const loadProjects = useCallback(async () => {
     if (!user) return [];
     try {
-      const res = await api.get<any>(`/home?userId=${user.id}`);
+      const res = await api.get<any>('/home');
       const owned = (res.data.ownedProjects || []).map((p: any) => ({
         id: p.id,
         name: p.name,

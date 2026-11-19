@@ -513,7 +513,7 @@ export const Dashboard: React.FC = () => {
   }
 
   // Determine user role relative to current project
-  const isProjOwner = currentProject.owner?.id === user?.id || user?.role === 'OWNER';
+  const isProjOwner = currentProject.owner?.id === user?.id || user?.role === 'ADMINISTRATOR';
 
   // Render View 2: Project Workspace View
   return (

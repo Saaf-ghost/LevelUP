@@ -1,9 +1,10 @@
 package com.boostup.service;
 
 import com.boostup.dto.DigestResponseDTO;
+import com.boostup.dto.MemberDTO;
 import com.boostup.dto.ProjectDetailDTO;
 import com.boostup.dto.ProjectRequestDTO;
-import com.boostup.dto.UserDTO;
+import com.boostup.model.ProjectRole;
 import com.boostup.model.Projet;
 import com.boostup.model.Sprint;
 import com.boostup.model.Task;
@@ -67,10 +68,7 @@ public class ProjetService {
 
     public Projet updateProjet(Long id, ProjectRequestDTO updatedProjet) {
         Projet projet = getProjetById(id);
-        User currentUser = authorizationService.currentUser();
-        if (projet.getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectEditor(id);
 
         applyProjectFields(projet, updatedProjet);
 
@@ -79,10 +77,7 @@ public class ProjetService {
 
     public void deleteProjet(Long id) {
         Projet projet = getProjetById(id);
-        User currentUser = authorizationService.currentUser();
-        if (projet.getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(id);
         projetRepository.delete(projet);
     }
 
@@ -91,16 +86,18 @@ public class ProjetService {
         Sprint activeSprint = sprintRepository.findByProjectIdAndIsActive(id, true)
                 .orElse(null);
         List<Task> tasks = activeSprint == null ? List.of() : taskRepository.findBySprintSprintId(activeSprint.getSprintId());
-        List<UserDTO> memberDTOs = project.getMembers().stream().map(UserDTO::from).toList();
+        Long ownerId = project.getOwner() == null ? null : project.getOwner().getId();
+        List<MemberDTO> memberDTOs = project.getMembers().stream()
+                .map(member -> MemberDTO.from(
+                        member,
+                        ownerId != null && ownerId == member.getId() ? ProjectRole.OWNER : ProjectRole.MEMBER))
+                .toList();
         return new ProjectDetailDTO(project, activeSprint, tasks, memberDTOs);
     }
 
     public Projet inviteMember(Long projectId, String email) {
         Projet project = getProjetById(projectId);
-        User currentUser = authorizationService.currentUser();
-        if (project.getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(projectId);
 
         User invitee = userRepository.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User with email " + email + " not found"));

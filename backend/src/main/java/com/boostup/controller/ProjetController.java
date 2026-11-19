@@ -52,19 +52,19 @@ public class ProjetController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'VIEWER')")
+    @PreAuthorize("@projectSecurity.isMember(#id)")
     public Projet getProjetById(@PathVariable Long id) {
         return projetService.getProjetById(id);
     }
 
     @GetMapping("/{id}/detail")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'VIEWER')")
+    @PreAuthorize("@projectSecurity.isMember(#id)")
     public ProjectDetailDTO getProjectDetail(@PathVariable Long id) {
         return projetService.getProjectDetail(id);
     }
 
     @GetMapping("/{id}/digest")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'VIEWER')")
+    @PreAuthorize("@projectSecurity.isMember(#id)")
     public DigestResponseDTO getProjectDigest(
             @PathVariable Long id,
             @RequestParam(defaultValue = "24") int hours
@@ -73,19 +73,19 @@ public class ProjetController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'MEMBER')")
+    @PreAuthorize("@projectSecurity.isMember(#id)")
     public Projet updateProjet(@PathVariable Long id, @RequestBody ProjectRequestDTO projet) {
         return projetService.updateProjet(id, projet);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'OWNER')")
+    @PreAuthorize("@projectSecurity.isOwner(#id)")
     public void deleteProjet(@PathVariable Long id) {
         projetService.deleteProjet(id);
     }
 
     @PostMapping("/{id}/members")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'OWNER')")
+    @PreAuthorize("@projectSecurity.isOwner(#id)")
     public Projet inviteMember(@PathVariable Long id, @RequestBody Map<String, String> payload) {
         String email = payload.get("email");
         if (email == null || email.isBlank()) {
@@ -95,25 +95,25 @@ public class ProjetController {
     }
 
     @GetMapping("/{id}/requirements")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'VIEWER')")
+    @PreAuthorize("@projectSecurity.isMember(#id)")
     public List<Requirement> getRequirementsByProject(@PathVariable Long id) {
         return requirementService.getRequirementsByProject(id);
     }
 
     @PostMapping("/{id}/requirements")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'OWNER')")
+    @PreAuthorize("@projectSecurity.isOwner(#id)")
     public Requirement addRequirement(@PathVariable Long id, @RequestBody RequirementRequestDTO reqDto) {
         return requirementService.createRequirementForProject(id, reqDto);
     }
 
     @PostMapping("/{id}/sprints")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'OWNER')")
+    @PreAuthorize("@projectSecurity.isOwner(#id)")
     public Sprint createSprint(@PathVariable Long id, @RequestBody SprintRequestDTO sprintDto) {
         return sprintService.createSprintForProject(id, sprintDto);
     }
 
     @GetMapping("/{id}/metrics")
-    @PreAuthorize("@projectSecurity.hasRole(#id, 'VIEWER')")
+    @PreAuthorize("@projectSecurity.isMember(#id)")
     public Map<String, Object> getProjectMetrics(@PathVariable Long id) {
         return metricsService.getProjectMetrics(id);
     }
