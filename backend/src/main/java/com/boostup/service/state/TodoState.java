@@ -7,9 +7,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class TodoState implements TaskState {
     @Override
     public void transitionTo(Task task, Task.TaskStatus nextStatus) {
-        if (nextStatus != Task.TaskStatus.IN_PROGRESS) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
-                    "Invalid transition: TODO tasks can only transition to IN_PROGRESS");
+        // The board is free-form: work can be started or completed directly.
+        if (nextStatus != Task.TaskStatus.IN_PROGRESS && nextStatus != Task.TaskStatus.DONE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Invalid transition: TODO tasks can only transition to IN_PROGRESS or DONE");
         }
     }
 }
