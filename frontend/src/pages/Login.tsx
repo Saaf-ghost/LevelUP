@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('owner@boostup.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   

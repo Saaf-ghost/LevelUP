@@ -1,5 +1,6 @@
 package com.boostup;
 
+import com.boostup.model.User;
 import com.boostup.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class AuthControllerTests {
     }
 
     @Test
-    void firstRegistrationBootstrapsTheAdministrator() throws Exception {
+    void registrationCreatesARegularUser() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -45,8 +46,42 @@ class AuthControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token", not(blankOrNullString())))
                 .andExpect(jsonPath("$.user.email").value("owner@boostup.com"))
-                .andExpect(jsonPath("$.user.role").value("ADMINISTRATOR"))
+                .andExpect(jsonPath("$.user.role").value("USER"))
                 .andExpect(jsonPath("$.user.capacityPoints").value(40));
+    }
+
+    @Test
+    void adminApiRejectsRegularUsers() throws Exception {
+        String token = register("member@boostup.com", "Regular Member");
+
+        mockMvc.perform(get("/api/admin/users")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminApiAcceptsPromotedAdministrator() throws Exception {
+        register("promoted@boostup.com", "Promoted Admin");
+        User promoted = userRepository.findByEmail("promoted@boostup.com").orElseThrow();
+        promoted.setRole(User.Role.ADMINISTRATOR);
+        userRepository.save(promoted);
+
+        String response = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "promoted@boostup.com",
+                                  "password": "password"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = response.replaceAll(".*\\\"token\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(get("/api/admin/users")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].email").value("promoted@boostup.com"));
     }
 
     @Test

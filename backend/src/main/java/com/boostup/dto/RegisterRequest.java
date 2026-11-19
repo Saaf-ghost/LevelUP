@@ -4,8 +4,8 @@ import lombok.Data;
 
 /**
  * Registration payload. The platform role is never taken from the client:
- * new accounts are created as USER (the very first account bootstraps
- * the platform ADMINISTRATOR).
+ * every self-service registration creates a regular USER. Platform
+ * administrators are provisioned by the developer, never by signing up.
  */
 @Data
 public class RegisterRequest {

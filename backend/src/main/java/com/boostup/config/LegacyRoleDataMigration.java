@@ -27,7 +27,6 @@ public class LegacyRoleDataMigration implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         normalizePlatformRoles();
         normalizeLegacyProjectMemberships();
-        ensureAdministratorExists();
     }
 
     private void normalizePlatformRoles() {
@@ -49,25 +48,6 @@ public class LegacyRoleDataMigration implements ApplicationRunner {
                     "UPDATE project_memberships SET role = 'MEMBER' WHERE role IS NOT NULL AND role NOT IN ('OWNER', 'MEMBER')");
         } catch (Exception exception) {
             logger.debug("No legacy project_memberships migration needed: {}", exception.getMessage());
-        }
-    }
-
-    private void ensureAdministratorExists() {
-        try {
-            Integer users = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Integer.class);
-            if (users == null || users == 0) {
-                return;
-            }
-            Integer administrators = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM users WHERE role = 'ADMINISTRATOR'", Integer.class);
-            if (administrators != null && administrators > 0) {
-                return;
-            }
-            jdbcTemplate.update(
-                    "UPDATE users SET role = 'ADMINISTRATOR' WHERE id = (SELECT MIN(id) FROM users)");
-            logger.warn("No platform administrator existed; promoted the oldest account");
-        } catch (Exception exception) {
-            logger.debug("Skipping administrator bootstrap check: {}", exception.getMessage());
         }
     }
 }

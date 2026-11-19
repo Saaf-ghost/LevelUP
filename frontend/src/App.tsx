@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SprintProvider } from './context/SprintContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -12,6 +13,13 @@ const Register = lazy(() => import('./pages/Register'));
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+};
+
+const AdministratorRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isAdministrator } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAdministrator) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
@@ -28,6 +36,7 @@ const App: React.FC = () => {
               
               <Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route index element={<Dashboard />} />
+                <Route path="admin" element={<AdministratorRoute><AdminDashboard /></AdministratorRoute>} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>
               

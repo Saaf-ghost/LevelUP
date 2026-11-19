@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell } from 'recharts';
-import { LogOut, ChevronDown, FolderOpen } from 'lucide-react';
+import { LogOut, ChevronDown, FolderOpen, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSprint } from '../../context/SprintContext';
@@ -8,7 +8,7 @@ import { useSprint } from '../../context/SprintContext';
 const Header: React.FC = () => {
   const { sprint, currentProject, setCurrentProject } = useSprint();
   const healthScore = sprint ? sprint.healthScore : 100;
-  const { user, logout } = useAuth();
+  const { user, logout, isAdministrator } = useAuth();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -170,6 +170,18 @@ const Header: React.FC = () => {
                   <FolderOpen size={14} className="text-orange-500" />
                   Workspace Dashboard
                 </button>
+                {isAdministrator && (
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      navigate('/dashboard/admin');
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                  >
+                    <ShieldCheck size={14} className="text-orange-500" />
+                    Platform Administration
+                  </button>
+                )}
               </div>
               <div className="border-t border-slate-100 py-1">
                 <button

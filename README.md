@@ -161,7 +161,9 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>, register an account, create a project, and use **AI Decompose PRD** in the backlog panel to generate a backlog.
+Open <http://localhost:5173> and sign in as the platform administrator with the credentials defined by `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env` (the profile menu then exposes **Platform Administration**). Accounts created through the registration form are always regular users.
+
+Administrators can create projects too: whoever creates a project is its **OWNER**, while invited accounts are **MEMBER** of that project. Project roles are independent of the platform role.
 
 ---
 
@@ -190,7 +192,8 @@ All runtime configuration is read from a root `.env` file, which is local-only a
 | `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD` | Message broker |
 | `UPLOAD_DIR` | Temporary storage for uploaded documents |
 | `AI_SERVICE_OLLAMA_BASE_URL`, `AI_SERVICE_OLLAMA_MODEL` | Local LLM endpoint and model |
-| `VITE_API_BASE_URL` | Backend URL used by the frontend |
+| `VITE_API_BASE_URL` | Backend base URL used by the frontend, including the `/api` prefix |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_FULL_NAME` | Platform administrator provisioned at startup; registration never grants this role |
 
 > Replace `JWT_SECRET` and all database credentials before deploying anywhere shared. The defaults in `.env.example` are for local development only.
 
