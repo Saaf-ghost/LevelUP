@@ -13,6 +13,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findBySprintProjectId(Long projectId);
 
+    List<Task> findByRequirementProjectIdIn(Collection<Long> projectIds);
+
     List<Task> findBySprintProjectIdAndUpdatedAtAfter(Long projectId, LocalDateTime since);
 
     List<Task> findBySprintAndAssigneeIdAndStatusNot(Sprint sprint, Long assigneeId, Task.TaskStatus status);

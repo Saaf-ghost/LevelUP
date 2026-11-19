@@ -4,6 +4,7 @@ import com.boostup.dto.TaskAssignmentDTO;
 import com.boostup.dto.TaskAssignmentResponseDTO;
 import com.boostup.dto.TaskRequestDTO;
 import com.boostup.dto.TaskStatusUpdateDTO;
+import com.boostup.model.Projet;
 import com.boostup.model.Sprint;
 import com.boostup.model.Task;
 import com.boostup.model.TaskStatusHistory;
@@ -49,11 +50,8 @@ public class TaskService {
 
     public Task createTask(TaskRequestDTO dto) {
         Sprint sprint = getSprint(dto.getSprintId());
-        User currentUser = authorizationService.currentUser();
-        if (sprint.getProject().getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
-        
+        authorizationService.requireProjectEditor(sprint.getProject().getId());
+
         Task task = new Task();
         applyEditableFields(task, dto, sprint);
         task.setStatus(dto.getStatus() == null ? Task.TaskStatus.TODO : dto.getStatus());
@@ -66,10 +64,7 @@ public class TaskService {
         com.boostup.model.Requirement requirement = requirementRepository.findById(requirementId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Requirement not found"));
         
-        User currentUser = authorizationService.currentUser();
-        if (requirement.getProject().getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectEditor(requirement.getProject().getId());
 
         Task task = new Task();
         task.setTitle(dto.getTitle());
@@ -96,24 +91,31 @@ public class TaskService {
     }
 
     public List<Task> getAllTasks() {
-        return taskRepository.findAll();
+        User user = authorizationService.currentUser();
+        List<Long> projectIds = authorizationService.accessibleProjectIds(user);
+        if (projectIds.isEmpty()) {
+            return List.of();
+        }
+        return taskRepository.findByRequirementProjectIdIn(projectIds);
     }
 
     public List<Task> getTasksBySprint(Long sprintId) {
+        Sprint sprint = getSprint(sprintId);
+        authorizationService.requireProjectViewer(sprint.getProject().getId());
         return taskRepository.findBySprintSprintId(sprintId);
     }
 
     public Task getTaskById(Long id) {
-        return taskRepository.findById(id)
+        Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
+        authorizationService.requireProjectViewer(projectOf(task).getId());
+        return task;
     }
 
     public Task updateTask(Long id, TaskRequestDTO dto) {
         Task task = getTaskById(id);
         User currentUser = authorizationService.currentUser();
-        if (task.getRequirement().getProject().getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectEditor(projectOf(task).getId());
 
         Sprint sprint = getSprint(dto.getSprintId());
         applyEditableFields(task, dto, sprint);
@@ -129,11 +131,8 @@ public class TaskService {
     public Task updateStatus(Long id, TaskStatusUpdateDTO dto) {
         Task task = getTaskById(id);
         User changedBy = authorizationService.currentUser();
-        // Allow members or owners to change status
-        com.boostup.model.ProjectMembership.Role role = authorizationService.getProjectRole(task.getRequirement().getProject().getId());
-        if (role == null) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not associated with this project");
-        }
+        // Owners and members both work the board; outsiders are rejected.
+        authorizationService.requireProjectEditor(projectOf(task).getId());
 
         changeStatus(task, dto.getStatus(), changedBy);
         Task saved = taskRepository.save(task);
@@ -142,7 +141,7 @@ public class TaskService {
 
     public TaskAssignmentResponseDTO assignTask(Long id, TaskAssignmentDTO dto) {
         Task task = getTaskById(id);
-        authorizationService.requireProjectEditor(task.getRequirement().getProject().getId());
+        authorizationService.requireProjectEditor(projectOf(task).getId());
         if (dto.getAssigneeId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "assigneeId is required");
         }
@@ -164,11 +163,19 @@ public class TaskService {
 
     public void deleteTask(Long id) {
         Task task = getTaskById(id);
-        User currentUser = authorizationService.currentUser();
-        if (task.getRequirement().getProject().getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectEditor(projectOf(task).getId());
         taskRepository.delete(task);
+    }
+
+    private Projet projectOf(Task task) {
+        Projet project = task.getRequirement() == null ? null : task.getRequirement().getProject();
+        if (project == null && task.getSprint() != null) {
+            project = task.getSprint().getProject();
+        }
+        if (project == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Task is not attached to a project");
+        }
+        return project;
     }
 
     private void applyEditableFields(Task task, TaskRequestDTO dto, Sprint sprint) {

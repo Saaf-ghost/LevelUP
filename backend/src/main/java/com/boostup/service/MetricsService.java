@@ -37,6 +37,7 @@ public class MetricsService {
     private final TaskRepository taskRepository;
     private final SprintMetricSnapshotRepository snapshotRepository;
     private final MetricFormulaCalculator calculator;
+    private final AuthorizationService authorizationService;
     private final int reviewThresholdHours;
 
     public MetricsService(
@@ -45,6 +46,7 @@ public class MetricsService {
             TaskRepository taskRepository,
             SprintMetricSnapshotRepository snapshotRepository,
             MetricFormulaCalculator calculator,
+            AuthorizationService authorizationService,
             @Value("${app.metrics.review-threshold-hours:24}") int reviewThresholdHours
     ) {
         this.sprintRepository = sprintRepository;
@@ -52,6 +54,7 @@ public class MetricsService {
         this.taskRepository = taskRepository;
         this.snapshotRepository = snapshotRepository;
         this.calculator = calculator;
+        this.authorizationService = authorizationService;
         this.reviewThresholdHours = reviewThresholdHours;
     }
 
@@ -117,6 +120,7 @@ public class MetricsService {
     public List<VelocityTrendDTO> getVelocityTrend(Long projectId, int limit) {
         Projet project = projetRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        authorizationService.requireProjectViewer(project.getId());
         int safeLimit = limit <= 0 ? 5 : limit;
         return sprintRepository.findByProjectIdOrderByEndDateDesc(project.getId()).stream()
                 .limit(safeLimit)
@@ -138,6 +142,7 @@ public class MetricsService {
     public Map<String, Object> getProjectMetrics(Long projectId) {
         Projet project = projetRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        authorizationService.requireProjectViewer(project.getId());
 
         List<Task> allTasks = taskRepository.findBySprintProjectId(projectId);
         long todoCount = allTasks.stream().filter(t -> t.getStatus() == Task.TaskStatus.TODO).count();
@@ -192,8 +197,10 @@ public class MetricsService {
     }
 
     private Sprint getSprint(Long sprintId) {
-        return sprintRepository.findById(sprintId)
+        Sprint sprint = sprintRepository.findById(sprintId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
+        authorizationService.requireProjectViewer(sprint.getProject().getId());
+        return sprint;
     }
 
     private BottleneckDTO toBottleneck(Task task, LocalDateTime now) {

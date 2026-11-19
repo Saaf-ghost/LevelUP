@@ -3,6 +3,7 @@ package com.boostup.controller;
 import com.boostup.dto.DecisionNoteRequestDTO;
 import com.boostup.model.DecisionNote;
 import com.boostup.service.DecisionNoteService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class DecisionNoteController {
     }
 
     @PostMapping
+    @PreAuthorize("@projectSecurity.isTaskMember(#taskId)")
     public DecisionNote createDecisionNote(
             @PathVariable Long taskId,
             @RequestBody DecisionNoteRequestDTO dto
@@ -25,6 +27,7 @@ public class DecisionNoteController {
     }
 
     @GetMapping
+    @PreAuthorize("@projectSecurity.isTaskMember(#taskId)")
     public List<DecisionNote> getDecisionNotes(@PathVariable Long taskId) {
         return decisionNoteService.getDecisionNotes(taskId);
     }

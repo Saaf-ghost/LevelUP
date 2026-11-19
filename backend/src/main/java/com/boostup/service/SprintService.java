@@ -47,11 +47,7 @@ public class SprintService {
         Projet project = projetRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
 
-        // Assert ownership: project owner matches the current executing user
-        User currentUser = authorizationService.currentUser();
-        if (project.getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(project.getId());
 
         // Before executing sprint insertion, query for active sprints
         sprintRepository.findByProjectIdAndIsActive(dto.getProjectId(), true)
@@ -95,16 +91,24 @@ public class SprintService {
     }
 
     public List<Sprint> getAllSprints() {
-        return sprintRepository.findAll();
+        User user = authorizationService.currentUser();
+        List<Long> projectIds = authorizationService.accessibleProjectIds(user);
+        if (projectIds.isEmpty()) {
+            return List.of();
+        }
+        return sprintRepository.findByProjectIdIn(projectIds);
     }
 
     public List<Sprint> getSprintsByProject(Long projectId) {
+        authorizationService.requireProjectViewer(projectId);
         return sprintRepository.findByProjectId(projectId);
     }
 
     public Sprint getSprintById(Long id) {
-        return sprintRepository.findById(id)
+        Sprint sprint = sprintRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
+        authorizationService.requireProjectViewer(sprint.getProject().getId());
+        return sprint;
     }
 
     public Sprint updateSprint(Long id, SprintRequestDTO dto) {
@@ -112,10 +116,7 @@ public class SprintService {
         Sprint sprint = getSprintById(id);
         Projet project = sprint.getProject();
 
-        User currentUser = authorizationService.currentUser();
-        if (project.getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(project.getId());
 
         // If transitioning to ACTIVE or is active
         if (dto.getSprintStatus() == Sprint.SprintStatus.ACTIVE) {
@@ -161,8 +162,8 @@ public class SprintService {
     }
 
     public void deleteSprint(Long id) {
-        authorizationService.requireOwner();
         Sprint sprint = getSprintById(id);
+        authorizationService.requireProjectOwner(sprint.getProject().getId());
         sprintRepository.delete(sprint);
     }
 

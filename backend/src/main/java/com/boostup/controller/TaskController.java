@@ -6,6 +6,7 @@ import com.boostup.dto.TaskRequestDTO;
 import com.boostup.dto.TaskStatusUpdateDTO;
 import com.boostup.model.Task;
 import com.boostup.service.TaskService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,26 +34,31 @@ public class TaskController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@projectSecurity.isTaskMember(#id)")
     public Task getTaskById(@PathVariable Long id) {
         return taskService.getTaskById(id);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@projectSecurity.isTaskMember(#id)")
     public Task updateTask(@PathVariable Long id, @RequestBody TaskRequestDTO dto) {
         return taskService.updateTask(id, dto);
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("@projectSecurity.isTaskMember(#id)")
     public Task updateTaskStatus(@PathVariable Long id, @RequestBody TaskStatusUpdateDTO dto) {
         return taskService.updateStatus(id, dto);
     }
 
     @PostMapping("/{id}/assign")
+    @PreAuthorize("@projectSecurity.isTaskMember(#id)")
     public TaskAssignmentResponseDTO assignTask(@PathVariable Long id, @RequestBody TaskAssignmentDTO dto) {
         return taskService.assignTask(id, dto);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@projectSecurity.isTaskMember(#id)")
     public void deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
     }

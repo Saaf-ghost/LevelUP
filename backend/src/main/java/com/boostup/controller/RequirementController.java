@@ -6,6 +6,7 @@ import com.boostup.model.Requirement;
 import com.boostup.model.Task;
 import com.boostup.service.RequirementService;
 import com.boostup.service.TaskService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,26 +28,31 @@ public class RequirementController {
     }
 
     @GetMapping("/sprint/{sprintId}")
+    @PreAuthorize("@projectSecurity.isSprintMember(#sprintId)")
     public List<Requirement> getRequirementsBySprint(@PathVariable Long sprintId) {
         return requirementService.getRequirementsBySprint(sprintId);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@projectSecurity.isRequirementMember(#id)")
     public Requirement getRequirementById(@PathVariable Long id) {
         return requirementService.getRequirementById(id);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@projectSecurity.isRequirementOwner(#id)")
     public Requirement updateRequirement(@PathVariable Long id, @RequestBody RequirementRequestDTO dto) {
         return requirementService.updateRequirement(id, dto);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@projectSecurity.isRequirementOwner(#id)")
     public void deleteRequirement(@PathVariable Long id) {
         requirementService.deleteRequirement(id);
     }
 
     @PostMapping("/{requirementId}/subtasks")
+    @PreAuthorize("@projectSecurity.isRequirementMember(#requirementId)")
     public Task createSubtask(@PathVariable Long requirementId, @RequestBody TaskRequestDTO dto) {
         return taskService.createSubtask(requirementId, dto);
     }

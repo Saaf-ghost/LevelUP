@@ -38,10 +38,7 @@ public class RequirementService {
             Sprint sprint = sprintRepository.findById(dto.getSprintId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
 
-            User currentUser = authorizationService.currentUser();
-            if (sprint.getProject().getOwner().getId() != currentUser.getId()) {
-                throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-            }
+            authorizationService.requireProjectOwner(sprint.getProject().getId());
 
             if (sprint.getIsActive()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot inject requirement directly into an active sprint.");
@@ -64,11 +61,7 @@ public class RequirementService {
         Projet project = projetRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
 
-        User currentUser = authorizationService.currentUser();
-        // Use Long comparison correctly (avoid object identity comparison)
-        if (project.getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(project.getId());
 
         Requirement requirement = new Requirement();
         requirement.setTitle(dto.getTitle() == null || dto.getTitle().isBlank() ? "Untitled Requirement" : dto.getTitle().trim());
@@ -86,21 +79,22 @@ public class RequirementService {
     }
 
     public List<Requirement> getRequirementsBySprint(Long sprintId) {
+        Sprint sprint = sprintRepository.findById(sprintId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
+        authorizationService.requireProjectViewer(sprint.getProject().getId());
         return requirementRepository.findBySprintSprintId(sprintId);
     }
 
     public Requirement getRequirementById(Long id) {
-        return requirementRepository.findById(id)
+        Requirement requirement = requirementRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Requirement not found"));
+        authorizationService.requireProjectViewer(requirement.getProject().getId());
+        return requirement;
     }
 
     public Requirement updateRequirement(Long id, RequirementRequestDTO dto) {
         Requirement requirement = getRequirementById(id);
-
-        User currentUser = authorizationService.currentUser();
-        if (requirement.getProject().getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(requirement.getProject().getId());
 
         if (dto.getTitle() != null) {
             requirement.setTitle(dto.getTitle());
@@ -125,10 +119,7 @@ public class RequirementService {
 
     public void deleteRequirement(Long id) {
         Requirement requirement = getRequirementById(id);
-        User currentUser = authorizationService.currentUser();
-        if (requirement.getProject().getOwner().getId() != currentUser.getId()) {
-            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this project");
-        }
+        authorizationService.requireProjectOwner(requirement.getProject().getId());
         requirementRepository.delete(requirement);
     }
 }
