@@ -13,21 +13,14 @@ const AddSubtaskModal: React.FC<Props> = ({ onClose }) => {
   const [storyPoints, setStoryPoints] = useState(1);
   const [assigneeId, setAssigneeId] = useState<string>('');
 
-  if (!sprint) {
-    return null;
-  }
+  if (!sprint) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (requirementId === '' || !title.trim()) return;
-    
+
     try {
-      await addNewSubtask(
-        requirementId,
-        title.trim(),
-        storyPoints,
-        assigneeId ? Number(assigneeId) : null
-      );
+      await addNewSubtask(requirementId, title.trim(), storyPoints, assigneeId ? Number(assigneeId) : null);
       onClose();
     } catch (err) {
       console.error(err);
@@ -35,91 +28,83 @@ const AddSubtaskModal: React.FC<Props> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex justify-between items-center px-5 py-3 border-b border-slate-700 bg-slate-800/40">
-          <h2 className="text-base font-bold text-slate-100">Add New Subtask</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-100 transition-colors p-1">
-            <X size={20} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-line bg-surface-2 px-5 py-3.5">
+          <h2 className="font-display text-lg font-semibold text-ink">Add subtask</h2>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-ink-faint hover:text-ink" aria-label="Close">
+            <X size={17} />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">Parent Requirement (Epic)</label>
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="label-xs">Parent requirement</label>
             <select
               value={requirementId}
-              onChange={e => setRequirementId(Number(e.target.value))}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 cursor-pointer"
+              onChange={event => setRequirementId(Number(event.target.value))}
+              className="input cursor-pointer"
               required
             >
-              <option value="" disabled>Select Requirement</option>
-              {sprint.requirements.map(req => (
-                <option key={req.id} value={req.id}>
-                  {req.title}
+              <option value="" disabled>
+                Select requirement
+              </option>
+              {sprint.requirements.map(requirement => (
+                <option key={requirement.id} value={requirement.id}>
+                  {requirement.title}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-300">Subtask Title</label>
+          <div className="space-y-1.5">
+            <label className="label-xs">Subtask title</label>
             <input
               type="text"
               required
               value={title}
-              onChange={e => setTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 transition-colors"
-              placeholder="e.g. Build API Endpoints"
+              onChange={event => setTitle(event.target.value)}
+              className="input"
+              placeholder="e.g. Build API endpoints"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-300">Story Points</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="label-xs">Story points</label>
               <input
                 type="number"
                 min={0}
                 required
                 value={storyPoints}
-                onChange={e => setStoryPoints(parseInt(e.target.value) || 0)}
-                className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 text-center"
+                onChange={event => setStoryPoints(parseInt(event.target.value) || 0)}
+                className="input text-center tnum"
               />
             </div>
-            
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-300">Assignee</label>
+
+            <div className="space-y-1.5">
+              <label className="label-xs">Assignee</label>
               <select
                 value={assigneeId}
-                onChange={e => setAssigneeId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 cursor-pointer"
+                onChange={event => setAssigneeId(event.target.value)}
+                className="input cursor-pointer"
               >
                 <option value="">Unassigned</option>
-                {members.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.fullName}
+                {members.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.fullName}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="pt-4 border-t border-slate-800 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors text-xs font-medium"
-            >
+          <div className="flex justify-end gap-2 border-t border-line pt-4">
+            <button type="button" onClick={onClose} className="btn-quiet">
               Cancel
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-lg shadow-indigo-500/25"
-            >
-              Add Subtask
+            <button type="submit" className="btn-primary">
+              Add subtask
             </button>
           </div>
         </form>

@@ -2,9 +2,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSprint } from '../context/SprintContext';
 import type { TaskStatus } from '../context/SprintContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   Plus,
   ArrowRight,
+  ArrowLeft,
   TrendingDown,
   BarChart4,
   AlertTriangle,
@@ -15,9 +17,10 @@ import {
   Mail,
   UserPlus,
   Play,
-  LogOut,
   FolderOpen,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  Loader2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -30,19 +33,71 @@ import {
   BarChart,
   Bar,
   Cell,
-  Legend
+  Legend,
 } from 'recharts';
 import KanbanBoard from '../components/kanban/KanbanBoard';
 import { BacklogPdfUploadModal } from '../components/ai/BacklogPdfUploadModal';
 
+const DEFAULT_REQ_COLOR = '#e2560e';
+
+const ProjectCard: React.FC<{
+  name: string;
+  description: string;
+  startDate?: string;
+  endDate?: string;
+  role: 'Owner' | 'Member';
+  onClick: () => void;
+}> = ({ name, description, startDate, endDate, role, onClick }) => {
+  const isOwner = role === 'Owner';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative w-full overflow-hidden rounded-xl border bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
+        isOwner ? 'border-line hover:border-brand/50' : 'border-line hover:border-leaf/50'
+      }`}
+    >
+      <span className={`absolute inset-x-0 top-0 h-[3px] ${isOwner ? 'bg-brand' : 'bg-leaf'}`} />
+
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className={`truncate text-sm font-semibold text-ink transition-colors ${isOwner ? 'group-hover:text-brand' : 'group-hover:text-leaf'}`}>
+            {name}
+          </h3>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-soft">{description}</p>
+        </div>
+        <span
+          className={`chip shrink-0 uppercase tracking-[0.08em] ${
+            isOwner ? 'border-brand/25 bg-brand-soft text-brand' : 'border-leaf/25 bg-leaf-soft text-leaf'
+          }`}
+        >
+          {role}
+        </span>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-line pt-2.5 text-[10px] text-ink-faint">
+        <span className="flex items-center gap-1 tnum">
+          <Calendar size={11} />
+          {startDate || '—'} → {endDate || '—'}
+        </span>
+        <span className={`flex items-center gap-1 font-semibold ${isOwner ? 'text-brand' : 'text-leaf'}`}>
+          Open <ArrowRight size={11} className="transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </div>
+    </button>
+  );
+};
+
 export const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { isDark } = useTheme();
   const {
     ownedProjects,
     memberProjects,
     currentProject,
     setCurrentProject,
     sprint,
+    metrics,
     loading,
     members,
     allProjectRequirements,
@@ -53,23 +108,22 @@ export const Dashboard: React.FC = () => {
     createNewSprint,
     completeSprint,
     createProject,
-    inviteMember
+    inviteMember,
   } = useSprint();
 
-  // Navigation tabs state for View 2
   const [activeTab, setActiveTab] = useState<'A' | 'B' | 'C' | 'D'>('A');
+  const [actionError, setActionError] = useState('');
 
-  // Modal / Form states
   const [isCreateProjOpen, setIsCreateProjOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
   const [isCreatingProj, setIsCreatingProj] = useState(false);
+  const [createError, setCreateError] = useState('');
 
-  // Tab B forms
   const [newReqTitle, setNewReqTitle] = useState('');
   const [newReqDesc, setNewReqDesc] = useState('');
-  const [newReqColor, setNewReqColor] = useState('#6366F1');
+  const [newReqColor, setNewReqColor] = useState(DEFAULT_REQ_COLOR);
   const [isAddingReq, setIsAddingReq] = useState(false);
 
   const [activeReqForSubtask, setActiveReqForSubtask] = useState<number | null>(null);
@@ -78,430 +132,374 @@ export const Dashboard: React.FC = () => {
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState<number | ''>('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
 
-  // Sprint creation form
   const [sprintObjective, setSprintObjective] = useState('');
   const [sprintStart, setSprintStart] = useState('');
   const [sprintEnd, setSprintEnd] = useState('');
   const [selectedReqIds, setSelectedReqIds] = useState<number[]>([]);
   const [isCreatingSprint, setIsCreatingSprint] = useState(false);
 
-  // Invite member form
   const [inviteEmail, setInviteEmail] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [inviteMsg, setInviteMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // Expanded Requirements in Tab B tree
   const [expandedReqs, setExpandedReqs] = useState<Record<number, boolean>>({});
-
-  // Expanded Contributors in Tab D tree
   const [expandedMembers, setExpandedMembers] = useState<Record<number, boolean>>({});
 
-  const toggleReqExpand = (id: number) => {
-    setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }));
+  const chartGrid = isDark ? '#322c24' : '#e8dfd1';
+  const chartAxis = isDark ? '#8e8477' : '#8b8275';
+  const chartTooltip = {
+    backgroundColor: isDark ? '#241f19' : '#ffffff',
+    borderColor: isDark ? '#3a332a' : '#e8dfd1',
+    borderRadius: '8px',
+    fontSize: '11px',
+    color: isDark ? '#f4eee3' : '#211e19',
   };
+  const brandLine = isDark ? '#fb8b3c' : '#e2560e';
+  const leafLine = isDark ? '#b3e04b' : '#4f7c12';
 
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const toggleReqExpand = (id: number) => setExpandedReqs(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const handleCreateProject = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!newProjName.trim() || !newProjDesc.trim()) return;
     setIsCreatingProj(true);
+    setCreateError('');
     try {
       await createProject(newProjName.trim(), newProjDesc.trim());
       setNewProjName('');
       setNewProjDesc('');
       setIsCreateProjOpen(false);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setCreateError(err?.response?.data?.message || 'Could not create that project.');
     } finally {
       setIsCreatingProj(false);
     }
   };
 
-  const handleAddRequirement = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddRequirement = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!newReqTitle.trim()) return;
     setIsAddingReq(true);
+    setActionError('');
     try {
       await addNewRequirement(newReqTitle.trim(), newReqDesc.trim(), newReqColor);
       setNewReqTitle('');
       setNewReqDesc('');
-      setNewReqColor('#6366F1');
-    } catch (err) {
-      console.error(err);
+      setNewReqColor(DEFAULT_REQ_COLOR);
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || 'Could not add the requirement.');
     } finally {
       setIsAddingReq(false);
     }
   };
 
-  const handleAddSubtask = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddSubtask = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!newSubtaskTitle.trim() || activeReqForSubtask === null) return;
     setIsAddingSubtask(true);
+    setActionError('');
     try {
       await addNewSubtask(
         activeReqForSubtask,
         newSubtaskTitle.trim(),
         newSubtaskSP,
-        newSubtaskAssignee ? Number(newSubtaskAssignee) : null
+        newSubtaskAssignee ? Number(newSubtaskAssignee) : null,
       );
       setNewSubtaskTitle('');
       setNewSubtaskSP(3);
       setNewSubtaskAssignee('');
       setActiveReqForSubtask(null);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || 'Could not add the task.');
     } finally {
       setIsAddingSubtask(false);
     }
   };
 
-  const handleInitializeSprint = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleInitializeSprint = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!sprintObjective.trim() || !sprintStart || !sprintEnd || selectedReqIds.length === 0) return;
     setIsCreatingSprint(true);
-    // Calculate total SP of selected requirements
+    setActionError('');
     const totalSelectedSP = allProjectRequirements
-      .filter(r => selectedReqIds.includes(r.id))
-      .reduce((sum, r) => sum + (r.tasks?.reduce((s, t) => s + t.effortPoints, 0) || 0), 0);
+      .filter(requirement => selectedReqIds.includes(requirement.id))
+      .reduce((sum, requirement) => sum + (requirement.tasks?.reduce((taskSum, task) => taskSum + task.effortPoints, 0) || 0), 0);
 
     try {
-      await createNewSprint(
-        sprintObjective.trim(),
-        sprintStart,
-        sprintEnd,
-        totalSelectedSP,
-        selectedReqIds
-      );
+      await createNewSprint(sprintObjective.trim(), sprintStart, sprintEnd, totalSelectedSP, selectedReqIds);
       setSprintObjective('');
       setSprintStart('');
       setSprintEnd('');
       setSelectedReqIds([]);
-      setActiveTab('A'); // Switch back to board
-    } catch (err) {
-      console.error(err);
+      setActiveTab('A');
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || 'Could not start the sprint.');
     } finally {
       setIsCreatingSprint(false);
     }
   };
 
-  const handleInviteMember = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleInviteMember = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!inviteEmail.trim()) return;
     setIsInviting(true);
     setInviteMsg(null);
     try {
       await inviteMember(inviteEmail.trim());
-      setInviteMsg({ text: `Successfully invited ${inviteEmail}!`, type: 'success' });
+      setInviteMsg({ text: `Invited ${inviteEmail.trim()} to this project.`, type: 'success' });
       setInviteEmail('');
     } catch (err: any) {
       setInviteMsg({
-        text: err.response?.data?.message || 'Failed to invite member. Please check if the user is registered.',
-        type: 'error'
+        text: err.response?.data?.message || 'Failed to invite. Check that the person is registered.',
+        type: 'error',
       });
     } finally {
       setIsInviting(false);
     }
   };
 
-  // Toggle checklist status of task from Tab B backlog tree
-  const handleToggleSubtaskCheckbox = async (subtaskId: number, currentStatus: string) => {
-    const nextStatus = currentStatus === 'DONE' ? 'TODO' : 'DONE';
-    await updateSubtaskStatus(subtaskId, nextStatus);
+  const changeTaskStatus = async (taskId: number, nextStatus: TaskStatus) => {
+    setActionError('');
+    try {
+      await updateSubtaskStatus(taskId, nextStatus);
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || 'That status change was rejected.');
+    }
   };
 
-  // Toggle all subtasks of a requirement from Tab B tree
-  const handleToggleRequirementCheckbox = async (_reqId: number, reqTasks: any[]) => {
+  const handleToggleSubtaskCheckbox = async (subtaskId: number, currentStatus: string) => {
+    await changeTaskStatus(subtaskId, currentStatus === 'DONE' ? 'TODO' : 'DONE');
+  };
+
+  const handleToggleRequirementCheckbox = async (reqTasks: any[]) => {
     if (reqTasks.length === 0) return;
-    const allDone = reqTasks.every((t: any) => t.status === 'DONE');
-    const targetStatus = allDone ? 'TODO' : 'DONE';
-    for (const t of reqTasks) {
-      if (t.status !== targetStatus) {
-        await updateSubtaskStatus(t.id, targetStatus);
+    const allDone = reqTasks.every((task: any) => task.status === 'DONE');
+    const targetStatus: TaskStatus = allDone ? 'TODO' : 'DONE';
+    for (const task of reqTasks) {
+      if (task.status !== targetStatus) {
+        await changeTaskStatus(task.id, targetStatus);
       }
     }
   };
 
-  // Burn-down calculations for Tab C
+  /* ---------------- Metrics (all derived from the API, nothing simulated) ---------------- */
+
   const burndownData = useMemo(() => {
-    if (!sprint) return [];
-    const days = 10;
-    const totalSP = sprint.subtasks.reduce((sum, t) => sum + t.effortPoints, 0);
-    const data = [];
-    
-    // Spread done tasks across the timeframe for actual burndown line
-    const doneTasks = [...sprint.subtasks.filter(t => t.status === 'DONE')];
-    const totalDoneSP = doneTasks.reduce((sum, t) => sum + t.effortPoints, 0);
+    const points = metrics?.burndownPoints ?? [];
+    if (points.length === 0) return [];
+    const total = metrics?.activeSprintTotalPoints ?? 0;
+    const lastIndex = Math.max(1, points.length - 1);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
-    for (let i = 0; i <= days; i++) {
-      const ideal = Math.max(0, parseFloat((totalSP - (totalSP / days) * i).toFixed(1)));
-      // Simulated curve towards the real final value
-      const percentComplete = Math.min(1, i / days);
-      const actualRemaining = totalSP - (totalDoneSP * percentComplete);
-      data.push({
-        day: `Day ${i}`,
-        Ideal: ideal,
-        Actual: i === days ? (totalSP - totalDoneSP) : Math.round(actualRemaining)
-      });
-    }
-    return data;
-  }, [sprint]);
+    return points.map((point, index) => {
+      const dayEnd = new Date(`${point.day}T00:00:00`);
+      const label = dayEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const isRecorded = dayEnd.getTime() <= today.getTime();
+      return {
+        day: label,
+        Ideal: Math.round(total - (total * index) / lastIndex),
+        Actual: isRecorded ? point.remainingPoints : null,
+      };
+    });
+  }, [metrics]);
 
-  // Point Distribution Calculations
   const distributionData = useMemo(() => {
     if (!sprint) return [];
-    const todo = sprint.subtasks.filter(t => t.status === 'TODO').reduce((s, t) => s + t.effortPoints, 0);
-    const ip = sprint.subtasks.filter(t => t.status === 'IN_PROGRESS').reduce((s, t) => s + t.effortPoints, 0);
-    const done = sprint.subtasks.filter(t => t.status === 'DONE').reduce((s, t) => s + t.effortPoints, 0);
+    const sumFor = (status: TaskStatus) =>
+      sprint.subtasks.filter(task => task.status === status).reduce((sum, task) => sum + task.effortPoints, 0);
 
     return [
-      { name: 'To Do', points: todo, color: '#3B82F6' },
-      { name: 'In Progress', points: ip, color: '#F59E0B' },
-      { name: 'Done', points: done, color: '#10B981' }
+      { name: 'To Do', points: sumFor('TODO'), color: isDark ? '#8e8477' : '#b3a795' },
+      { name: 'In Progress', points: sumFor('IN_PROGRESS'), color: brandLine },
+      { name: 'Done', points: sumFor('DONE'), color: leafLine },
     ];
-  }, [sprint]);
+  }, [sprint, isDark, brandLine, leafLine]);
 
-  // Sprint progress summary for the metrics view
   const sprintProgress = useMemo(() => {
     if (!sprint) {
       return { totalTasks: 0, doneTasks: 0, inProgressTasks: 0, todoTasks: 0, totalPoints: 0, donePoints: 0, completionPct: 0 };
     }
-    const doneTasks = sprint.subtasks.filter(t => t.status === 'DONE');
-    const totalPoints = sprint.subtasks.reduce((sum, t) => sum + t.effortPoints, 0);
-    const donePoints = doneTasks.reduce((sum, t) => sum + t.effortPoints, 0);
+    const doneTasks = sprint.subtasks.filter(task => task.status === 'DONE');
+    const totalPoints = sprint.subtasks.reduce((sum, task) => sum + task.effortPoints, 0);
+    const donePoints = doneTasks.reduce((sum, task) => sum + task.effortPoints, 0);
     return {
       totalTasks: sprint.subtasks.length,
       doneTasks: doneTasks.length,
-      inProgressTasks: sprint.subtasks.filter(t => t.status === 'IN_PROGRESS').length,
-      todoTasks: sprint.subtasks.filter(t => t.status === 'TODO').length,
+      inProgressTasks: sprint.subtasks.filter(task => task.status === 'IN_PROGRESS').length,
+      todoTasks: sprint.subtasks.filter(task => task.status === 'TODO').length,
       totalPoints,
       donePoints,
-      completionPct: totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0
+      completionPct: totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0,
     };
   }, [sprint]);
 
-  // Expand newly added requirements in state
   useEffect(() => {
     if (allProjectRequirements.length > 0) {
       setExpandedReqs(prev => {
         const next = { ...prev };
-        allProjectRequirements.forEach(r => {
-          if (next[r.id] === undefined) {
-            next[r.id] = false;
-          }
+        allProjectRequirements.forEach(requirement => {
+          if (next[requirement.id] === undefined) next[requirement.id] = false;
         });
         return next;
       });
     }
   }, [allProjectRequirements]);
 
-  // Render View 1: Homepage Dashboard
+  /* ---------------- Home ---------------- */
+
   if (!currentProject) {
     return (
-      <div className="max-w-7xl mx-auto space-y-10 animate-fade-in">
-        {/* Profile Card Header */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden shadow-xl">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-          
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-indigo-500/20">
-              {user?.fullName.charAt(0)}
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-100">{user?.fullName}</h1>
-              <p className="text-xs text-slate-400 mt-0.5">{user?.email}</p>
-              <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full uppercase">
-                  {user?.role}
-                </span>
-                <span className="text-[10px] font-semibold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
-                  Capacity: {user?.capacityPoints} SP
-                </span>
+      <div className="mx-auto max-w-6xl animate-rise space-y-6">
+        <section className="card relative overflow-hidden p-6 md:p-8">
+          <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-brand-soft blur-3xl" />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand to-[#f6b544] text-xl font-bold text-white">
+                {user?.fullName.charAt(0)}
+              </span>
+              <div>
+                <p className="label-xs">Workspace</p>
+                <h1 className="mt-1 font-display text-2xl font-semibold text-ink">{user?.fullName}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="chip border-line bg-surface-2 text-ink-soft">{user?.email}</span>
+                  <span
+                    className={`chip uppercase ${
+                      user?.role === 'ADMINISTRATOR'
+                        ? 'border-brand/25 bg-brand-soft text-brand'
+                        : 'border-leaf/25 bg-leaf-soft text-leaf'
+                    }`}
+                  >
+                    {user?.role === 'ADMINISTRATOR' && <ShieldCheck size={11} />}
+                    {user?.role}
+                  </span>
+                  <span className="chip border-line bg-surface-2 text-ink-soft tnum">
+                    Capacity {user?.capacityPoints} SP
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3 relative z-10">
-            <button
-              onClick={() => setIsCreateProjOpen(true)}
-              className="bg-indigo-650 hover:bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-xs font-semibold transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2"
-            >
-              <Plus size={16} />
-              Initialize Project Workspace
-            </button>
-            <button
-              onClick={logout}
-              className="bg-slate-800 hover:bg-slate-700/80 text-slate-300 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all border border-slate-700/40 flex items-center gap-2"
-            >
-              <LogOut size={16} />
-              Sign Out
+            <button type="button" onClick={() => setIsCreateProjOpen(true)} className="btn-primary px-4 py-2.5">
+              <Plus size={15} />
+              New project
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* Workspace grids */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Owner Grid */}
-          <div className="space-y-4">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                <FolderOpen size={16} className="text-indigo-400" />
-                My Projects (Owner)
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <FolderOpen size={15} className="text-brand" />
+                Owned by you
               </h2>
-              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-medium">
-                {ownedProjects.length} Created
-              </span>
+              <span className="chip border-brand/25 bg-brand-soft text-brand tnum">{ownedProjects.length}</span>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-              {ownedProjects.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => setCurrentProject(p)}
-                  className="bg-[#1E293B] border border-slate-700/60 rounded-xl p-5 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/5 cursor-pointer transition-all group relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-[25px] rounded-full"></div>
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-bold text-slate-200 group-hover:text-indigo-300 transition-colors truncate">
-                        {p.name}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                        {p.description}
-                      </p>
-                    </div>
-                    <span className="text-[9px] font-bold bg-indigo-550/15 text-indigo-400 border border-indigo-500/25 px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider">
-                      Owner
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-6 pt-3 border-t border-slate-800/40 text-[10px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} />
-                      {p.startDate} to {p.endDate}
-                    </span>
-                    <span className="flex items-center gap-1 text-indigo-400 font-semibold group-hover:translate-x-1 transition-transform">
-                      Open Workspace <ArrowRight size={12} />
-                    </span>
-                  </div>
-                </div>
+            <div className="space-y-3">
+              {ownedProjects.map(project => (
+                <ProjectCard
+                  key={project.id}
+                  name={project.name}
+                  description={project.description}
+                  startDate={project.startDate}
+                  endDate={project.endDate}
+                  role="Owner"
+                  onClick={() => setCurrentProject(project)}
+                />
               ))}
               {ownedProjects.length === 0 && (
-                <div className="bg-slate-900/20 border border-dashed border-slate-800 rounded-xl p-8 text-center text-slate-500">
-                  <p className="text-xs italic">No owned projects yet.</p>
-                  <p className="text-[10px] text-slate-600 mt-1">Click the button above to create one.</p>
+                <div className="rounded-xl border border-dashed border-line-strong bg-surface-2 p-8 text-center">
+                  <p className="text-xs text-ink-soft">No projects yet.</p>
+                  <p className="mt-1 text-[10px] text-ink-faint">Create one and you become its owner.</p>
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Member Grid */}
-          <div className="space-y-4">
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                <Users size={16} className="text-emerald-400" />
-                Collaborative Projects (Member)
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Users size={15} className="text-leaf" />
+                Shared with you
               </h2>
-              <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
-                {memberProjects.length} Joined
-              </span>
+              <span className="chip border-leaf/25 bg-leaf-soft text-leaf tnum">{memberProjects.length}</span>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-              {memberProjects.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => setCurrentProject(p)}
-                  className="bg-[#1E293B] border border-slate-700/60 rounded-xl p-5 hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/5 cursor-pointer transition-all group relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-[25px] rounded-full"></div>
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-bold text-slate-200 group-hover:text-emerald-300 transition-colors truncate">
-                        {p.name}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                        {p.description}
-                      </p>
-                    </div>
-                    <span className="text-[9px] font-bold bg-emerald-550/15 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider">
-                      Member
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-6 pt-3 border-t border-slate-800/40 text-[10px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} />
-                      {p.startDate} to {p.endDate}
-                    </span>
-                    <span className="flex items-center gap-1 text-emerald-400 font-semibold group-hover:translate-x-1 transition-transform">
-                      Open Workspace <ArrowRight size={12} />
-                    </span>
-                  </div>
-                </div>
+            <div className="space-y-3">
+              {memberProjects.map(project => (
+                <ProjectCard
+                  key={project.id}
+                  name={project.name}
+                  description={project.description}
+                  startDate={project.startDate}
+                  endDate={project.endDate}
+                  role="Member"
+                  onClick={() => setCurrentProject(project)}
+                />
               ))}
               {memberProjects.length === 0 && (
-                <div className="bg-slate-900/20 border border-dashed border-slate-800 rounded-xl p-8 text-center text-slate-500">
-                  <p className="text-xs italic">No collaborative projects yet.</p>
-                  <p className="text-[10px] text-slate-600 mt-1">You will see projects here once invited by email.</p>
+                <div className="rounded-xl border border-dashed border-line-strong bg-surface-2 p-8 text-center">
+                  <p className="text-xs text-ink-soft">Nothing shared yet.</p>
+                  <p className="mt-1 text-[10px] text-ink-faint">Projects appear here once an owner invites you.</p>
                 </div>
               )}
             </div>
-          </div>
+          </section>
         </div>
 
-        {/* Create Project Modal */}
         {isCreateProjOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-scale-in">
-              <div className="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-slate-800/20">
-                <h3 className="text-base font-bold text-slate-200">Initialize Project Workspace</h3>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
+              <div className="flex items-center justify-between border-b border-line bg-surface-2 px-5 py-3.5">
+                <h3 className="font-display text-lg font-semibold text-ink">New project</h3>
                 <button
+                  type="button"
                   onClick={() => setIsCreateProjOpen(false)}
-                  className="text-slate-400 hover:text-slate-200 transition-colors"
+                  className="text-lg leading-none text-ink-faint transition hover:text-ink"
+                  aria-label="Close"
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleCreateProject} className="p-6 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Project Name</label>
+              <form onSubmit={handleCreateProject} className="space-y-4 p-5">
+                {createError && (
+                  <div className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
+                    {createError}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <label className="label-xs">Project name</label>
                   <input
                     type="text"
                     required
                     value={newProjName}
-                    onChange={e => setNewProjName(e.target.value)}
-                    placeholder="e.g. Apollo Payment Gateway"
-                    className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500"
+                    onChange={event => setNewProjName(event.target.value)}
+                    placeholder="e.g. Apollo payment gateway"
+                    className="input"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</label>
+                <div className="space-y-1.5">
+                  <label className="label-xs">Description</label>
                   <textarea
                     required
                     rows={4}
                     value={newProjDesc}
-                    onChange={e => setNewProjDesc(e.target.value)}
-                    placeholder="Provide description of objectives and timeline..."
-                    className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 resize-none"
+                    onChange={event => setNewProjDesc(event.target.value)}
+                    placeholder="Objectives and timeline"
+                    className="input resize-none"
                   />
                 </div>
 
-                <div className="pt-4 flex justify-end gap-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateProjOpen(false)}
-                    className="px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 rounded-lg transition-colors"
-                  >
+                <div className="flex justify-end gap-2 border-t border-line pt-4">
+                  <button type="button" onClick={() => setIsCreateProjOpen(false)} className="btn-quiet">
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={isCreatingProj}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-xs font-semibold transition-all"
-                  >
-                    {isCreatingProj ? 'Creating...' : 'Initialize'}
+                  <button type="submit" disabled={isCreatingProj} className="btn-primary">
+                    {isCreatingProj ? <Loader2 size={14} className="animate-spin" /> : 'Create project'}
                   </button>
                 </div>
               </form>
@@ -512,266 +510,272 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // Determine user role relative to current project
+  /* ---------------- Workspace ---------------- */
+
   const isProjOwner = currentProject.owner?.id === user?.id || user?.role === 'ADMINISTRATOR';
+  const healthScore = sprint?.healthScore ?? null;
+  const healthTone =
+    healthScore === null
+      ? 'text-ink-faint'
+      : healthScore >= 80
+        ? 'text-leaf'
+        : healthScore >= 50
+          ? 'text-brand'
+          : 'text-danger';
 
-  // Render View 2: Project Workspace View
+  const gaugeRadius = 54;
+  const gaugeCircumference = 2 * Math.PI * gaugeRadius;
+  const gaugeOffset = healthScore === null ? gaugeCircumference : gaugeCircumference * (1 - Math.min(100, Math.max(0, healthScore)) / 100);
+
+  const handleCompleteSprint = async (sprintId: number) => {
+    setActionError('');
+    try {
+      await completeSprint(sprintId);
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || 'Could not close that sprint.');
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
-      {/* Workspace Header */}
-      <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md">
-        <div className="space-y-1">
-          <button
-            onClick={() => setCurrentProject(null)}
-            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1.5 mb-2 group"
-          >
-            <span className="group-hover:-translate-x-1 transition-transform">←</span> Back to Homepage
-          </button>
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-extrabold text-slate-100">{currentProject.name}</h1>
-            <span className="text-[10px] font-bold bg-slate-900/60 text-slate-400 px-2 py-0.5 rounded border border-slate-800 uppercase tracking-wider">
-              {isProjOwner ? 'OWNER' : 'MEMBER'}
-            </span>
+    <div className="mx-auto max-w-7xl space-y-5 animate-rise">
+      {/* Workspace header */}
+      <section className="card p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
             <button
-              onClick={refreshData}
-              className="text-[10px] font-bold text-slate-400 hover:text-slate-200 bg-slate-900/40 border border-slate-850 px-2 py-0.5 rounded transition-all"
-              title="Refresh Workspace State"
+              type="button"
+              onClick={() => setCurrentProject(null)}
+              className="mb-3 inline-flex items-center gap-1 text-[11px] font-semibold text-ink-faint transition hover:text-brand"
             >
-              Sync
+              <ArrowLeft size={12} />
+              All projects
             </button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">{currentProject.name}</h1>
+              <span
+                className={`chip uppercase tracking-[0.08em] ${
+                  isProjOwner ? 'border-brand/25 bg-brand-soft text-brand' : 'border-leaf/25 bg-leaf-soft text-leaf'
+                }`}
+              >
+                {isProjOwner ? 'Owner' : 'Member'}
+              </span>
+              <button type="button" onClick={refreshData} className="chip border-line bg-surface-2 text-ink-soft hover:text-ink">
+                Sync
+              </button>
+            </div>
+
+            <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-ink-soft">{currentProject.description}</p>
           </div>
-          <p className="text-xs text-slate-400 max-w-2xl">{currentProject.description}</p>
-        </div>
 
-        {/* Tab switch buttons */}
-        <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 self-start md:self-center">
-          <button
-            onClick={() => setActiveTab('A')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'A' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Sprint Board
-          </button>
-          <button
-            onClick={() => setActiveTab('B')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'B' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Backlog
-          </button>
-          <button
-            onClick={() => setActiveTab('C')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'C' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Visual Metrics
-          </button>
-          <button
-            onClick={() => setActiveTab('D')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'D' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Team
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-line bg-surface-2 p-1">
+            {(
+              [
+                ['A', 'Board'],
+                ['B', 'Backlog'],
+                ['C', 'Metrics'],
+                ['D', 'Team'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTab(key)}
+                data-active={activeTab === key}
+                className="tab"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Tab Contents */}
+      {actionError && (
+        <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          {actionError}
+        </div>
+      )}
+
       {loading ? (
-        <div className="flex justify-center items-center py-20">
-          <div className="text-xs text-slate-500 animate-pulse">Syncing Workspace State...</div>
+        <div className="flex items-center justify-center gap-2 py-24 text-xs text-ink-faint">
+          <Loader2 size={15} className="animate-spin" />
+          Loading workspace…
         </div>
       ) : (
-        <div className="min-h-[500px]">
-          {/* TAB A: Kanban Board */}
+        <div className="min-h-[420px]">
+          {/* Board */}
           {activeTab === 'A' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+            <div className="card p-4 sm:p-5">
               <KanbanBoard />
             </div>
           )}
 
-          {/* TAB B: Backlog & Sprint Initializer */}
+          {/* Backlog */}
           {activeTab === 'B' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Backlog Tree View */}
-              <div className="lg:col-span-2 space-y-6">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-bold text-slate-200">Requirements Backlog Tree</h3>
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+              <div className="space-y-4 xl:col-span-2">
+                <section className="card p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-display text-lg font-semibold text-ink">Backlog</h3>
+                      <p className="text-[11px] text-ink-faint">Requirements group the tasks that reach the board.</p>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsAiModalOpen(true)}
-                        className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 flex items-center gap-1.5 transition"
-                      >
-                        <Sparkles size={14} className="text-indigo-400" /> AI Decompose PRD
+                      <button type="button" onClick={() => setIsAiModalOpen(true)} className="btn-quiet">
+                        <Sparkles size={14} className="text-brand" />
+                        Decompose PRD
                       </button>
                       {isProjOwner && (
-                        <button
-                          onClick={() => setIsAddingReq(true)}
-                          className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                        >
-                          <Plus size={14} /> Add Requirement
+                        <button type="button" onClick={() => setIsAddingReq(value => !value)} className="btn-primary">
+                          <Plus size={14} />
+                          Requirement
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Add Requirement Form inline overlay */}
                   {isAddingReq && (
-                    <form onSubmit={handleAddRequirement} className="bg-[#1E293B] border border-slate-700/60 p-4 rounded-xl space-y-3 animate-fade-in">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-300">Add New Requirement (Epic)</span>
-                        <button type="button" onClick={() => setIsAddingReq(false)} className="text-slate-400 text-xs">✕</button>
+                    <form onSubmit={handleAddRequirement} className="mb-4 space-y-3 rounded-xl border border-line bg-surface-2 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-ink">New requirement</span>
+                        <button type="button" onClick={() => setIsAddingReq(false)} className="text-xs text-ink-faint hover:text-ink">
+                          Cancel
+                        </button>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">Title</label>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <label className="label-xs">Title</label>
                           <input
                             type="text"
                             required
                             value={newReqTitle}
-                            onChange={e => setNewReqTitle(e.target.value)}
-                            placeholder="e.g. Stripe Integration"
-                            className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2 outline-none"
+                            onChange={event => setNewReqTitle(event.target.value)}
+                            placeholder="e.g. Stripe integration"
+                            className="input"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">Color Label</label>
+                        <div className="space-y-1.5">
+                          <label className="label-xs">Label colour</label>
                           <select
                             value={newReqColor}
-                            onChange={e => setNewReqColor(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2 outline-none cursor-pointer"
+                            onChange={event => setNewReqColor(event.target.value)}
+                            className="input cursor-pointer"
                           >
-                            <option value="#6366F1">Indigo</option>
-                            <option value="#10B981">Green</option>
-                            <option value="#F59E0B">Amber</option>
-                            <option value="#EF4444">Red</option>
-                            <option value="#EC4899">Pink</option>
+                            <option value="#e2560e">Orange</option>
+                            <option value="#4f7c12">Leaf green</option>
+                            <option value="#0f766e">Teal</option>
+                            <option value="#b3261e">Brick</option>
+                            <option value="#a16207">Ochre</option>
                           </select>
                         </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">Description</label>
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="label-xs">Description</label>
                           <input
                             type="text"
                             value={newReqDesc}
-                            onChange={e => setNewReqDesc(e.target.value)}
-                            placeholder="Requirement notes..."
-                            className="w-full bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg p-2 outline-none"
+                            onChange={event => setNewReqDesc(event.target.value)}
+                            placeholder="Short note on scope"
+                            className="input"
                           />
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingReq(false)}
-                          className="px-3 py-1.5 text-[10px] text-slate-400 hover:bg-slate-800 rounded transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded px-3 py-1.5 text-[10px] font-semibold"
-                        >
-                          Save Epic
+                      <div className="flex justify-end">
+                        <button type="submit" disabled={newReqTitle.trim().length === 0} className="btn-primary">
+                          Save requirement
                         </button>
                       </div>
                     </form>
                   )}
 
-                  {/* Backlog Tree Items */}
-                  <div className="space-y-3">
-                    {allProjectRequirements.map(req => {
-                      const reqTasks = req.tasks || [];
-                      const isExpanded = expandedReqs[req.id];
-                      const allDone = reqTasks.length > 0 && reqTasks.every(t => t.status === 'DONE');
-                      
+                  <div className="space-y-2.5">
+                    {allProjectRequirements.map(requirement => {
+                      const reqTasks = requirement.tasks || [];
+                      const isExpanded = !!expandedReqs[requirement.id];
+                      const allDone = reqTasks.length > 0 && reqTasks.every(task => task.status === 'DONE');
+
                       return (
-                        <div key={req.id} className="border border-slate-800/80 rounded-xl overflow-hidden">
-                          {/* Requirement Row */}
-                          <div className="bg-[#1E293B]/40 px-4 py-3 flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0">
+                        <div key={requirement.id} className="overflow-hidden rounded-xl border border-line">
+                          <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-2.5">
+                            <div className="flex min-w-0 items-center gap-2.5">
                               <input
                                 type="checkbox"
                                 checked={allDone}
-                                onChange={() => handleToggleRequirementCheckbox(req.id, reqTasks)}
-                                className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4 bg-slate-950 shrink-0"
+                                onChange={() => handleToggleRequirementCheckbox(reqTasks)}
+                                aria-label={`Mark ${requirement.title} complete`}
+                                className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--brand)]"
                               />
                               <button
-                                onClick={() => toggleReqExpand(req.id)}
-                                className="text-slate-400 hover:text-slate-200 transition-colors"
+                                type="button"
+                                onClick={() => toggleReqExpand(requirement.id)}
+                                className="text-ink-faint transition hover:text-ink"
+                                aria-expanded={isExpanded}
                               >
-                                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                               </button>
-                              <div
-                                className="w-1.5 h-6 rounded shrink-0"
-                                style={{ backgroundColor: req.color }}
-                              />
+                              <span className="h-6 w-1.5 shrink-0 rounded" style={{ backgroundColor: requirement.color }} />
                               <div className="min-w-0">
-                                <h4 className="text-xs font-bold text-slate-200 truncate">{req.title}</h4>
-                                <p className="text-[10px] text-slate-500 truncate">{req.description || 'No description'}</p>
+                                <h4 className="truncate text-xs font-semibold text-ink">{requirement.title}</h4>
+                                <p className="truncate text-[10px] text-ink-faint">{requirement.description || 'No description'}</p>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3 shrink-0">
-                              {req.sprintId ? (
-                                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-medium">
-                                  Sprint Scope
-                                </span>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {requirement.sprintId ? (
+                                <span className="chip border-brand/25 bg-brand-soft text-brand">In sprint</span>
                               ) : (
-                                <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
-                                  Backlog
-                                </span>
+                                <span className="chip border-line bg-surface text-ink-soft">Backlog</span>
                               )}
                               {isProjOwner && (
                                 <button
-                                  onClick={() => setActiveReqForSubtask(req.id)}
-                                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold"
+                                  type="button"
+                                  onClick={() => setActiveReqForSubtask(requirement.id)}
+                                  className="text-[10px] font-semibold text-brand hover:underline"
                                 >
-                                  + Subtask
+                                  + task
                                 </button>
                               )}
                             </div>
                           </div>
 
-                          {/* Subtasks Expanded List */}
                           {isExpanded && (
-                            <div className="bg-slate-950/40 divide-y divide-slate-900 border-t border-slate-850 px-4 py-1">
+                            <div className="divide-y divide-line bg-surface">
                               {reqTasks.map(task => (
-                                <div key={task.id} className="py-2.5 flex items-center justify-between gap-4 text-xs">
-                                  <div className="flex items-center gap-3 min-w-0">
+                                <div key={task.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                                  <div className="flex min-w-0 items-center gap-2.5 pl-6">
                                     <input
                                       type="checkbox"
                                       checked={task.status === 'DONE'}
                                       onChange={() => handleToggleSubtaskCheckbox(task.id, task.status)}
-                                      className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-3.5 h-3.5 bg-slate-950 shrink-0"
+                                      aria-label={`Mark ${task.title} complete`}
+                                      className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--brand)]"
                                     />
-                                    <span className={`text-[11px] font-medium truncate ${
-                                      task.status === 'DONE' ? 'text-slate-550 line-through' : 'text-slate-300'
-                                    }`}>
+                                    <span
+                                      className={`truncate text-[11px] font-medium ${
+                                        task.status === 'DONE' ? 'text-ink-faint line-through' : 'text-ink'
+                                      }`}
+                                    >
                                       {task.title}
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center gap-4 shrink-0 text-[10px]">
+                                  <div className="flex shrink-0 items-center gap-2 text-[10px]">
                                     {task.assignee ? (
-                                      <span className="text-slate-400 font-medium bg-slate-900 px-2 py-0.5 rounded">
+                                      <span className="rounded bg-surface-2 px-1.5 py-0.5 font-medium text-ink-soft">
                                         {task.assignee.fullName}
                                       </span>
                                     ) : (
-                                      <span className="text-slate-600 italic">Unassigned</span>
+                                      <span className="italic text-ink-faint">Unassigned</span>
                                     )}
-                                    <span className="text-slate-450 font-bold bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-800">
+                                    <span className="rounded border border-line px-1.5 py-0.5 font-bold text-ink-soft tnum">
                                       {task.effortPoints} SP
                                     </span>
                                   </div>
                                 </div>
                               ))}
                               {reqTasks.length === 0 && (
-                                <p className="text-[10px] text-slate-600 italic py-3 text-center">No subtasks defined.</p>
+                                <p className="py-3 text-center text-[10px] italic text-ink-faint">No tasks yet.</p>
                               )}
                             </div>
                           )}
@@ -780,105 +784,100 @@ export const Dashboard: React.FC = () => {
                     })}
 
                     {allProjectRequirements.length === 0 && (
-                      <p className="text-xs text-slate-500 italic text-center py-6">No requirements created yet.</p>
+                      <p className="py-8 text-center text-xs italic text-ink-faint">
+                        Nothing in the backlog. Add a requirement or decompose a PRD.
+                      </p>
                     )}
                   </div>
-                </div>
+                </section>
               </div>
 
-              {/* Sprint Initializer & Subtask Modals */}
-              <div className="space-y-6">
-                {/* Sprint Initializer Form */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <Play size={16} className="text-indigo-400" />
-                    Initialize Sprint
+              <div className="space-y-4">
+                <section className="card p-5">
+                  <h3 className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
+                    <Play size={16} className="text-brand" />
+                    Sprint
                   </h3>
 
                   {sprint ? (
-                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl space-y-2">
-                      <div className="flex items-center gap-2 text-red-400 text-xs font-bold">
-                        <AlertTriangle size={16} />
-                        Active Sprint Running
+                    <div className="mt-3 space-y-2 rounded-xl border border-brand/20 bg-brand-soft/60 p-3.5">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-brand">
+                        <AlertTriangle size={14} />
+                        Sprint in progress
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Sprint <strong>"{sprint.name}"</strong> is currently active. You must conclude this active sprint inside the board or projects workspace before you can initialize a new one.
+                      <p className="text-[11px] leading-relaxed text-ink-soft">
+                        <strong className="text-ink">{sprint.name}</strong> is active. Close it before starting another.
                       </p>
                       {isProjOwner && (
                         <button
-                          onClick={() => completeSprint(sprint.id)}
-                          className="w-full mt-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 py-2 rounded-lg text-xs font-semibold transition-colors"
+                          type="button"
+                          onClick={() => handleCompleteSprint(sprint.id)}
+                          className="mt-1 w-full rounded-lg border border-danger/30 bg-surface py-2 text-xs font-semibold text-danger transition hover:bg-danger-soft"
                         >
-                          Conclude Active Sprint
+                          Close sprint
                         </button>
                       )}
                     </div>
                   ) : !isProjOwner ? (
-                    <p className="text-xs text-slate-500 italic">
-                      Sprint initialization is restricted to the Project Owner.
-                    </p>
+                    <p className="mt-3 text-xs italic text-ink-faint">Only the project owner can start a sprint.</p>
                   ) : (
-                    <form onSubmit={handleInitializeSprint} className="space-y-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 font-semibold uppercase">Sprint Objective</label>
+                    <form onSubmit={handleInitializeSprint} className="mt-3 space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="label-xs">Objective</label>
                         <input
                           type="text"
                           required
                           value={sprintObjective}
-                          onChange={e => setSprintObjective(e.target.value)}
-                          placeholder="e.g. Beta MVP Payments Flow"
-                          className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500"
+                          onChange={event => setSprintObjective(event.target.value)}
+                          placeholder="e.g. Beta payments flow"
+                          className="input"
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">Start Date</label>
+                        <div className="space-y-1.5">
+                          <label className="label-xs">Start</label>
                           <input
                             type="date"
                             required
                             value={sprintStart}
-                            onChange={e => setSprintStart(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2 outline-none focus:border-indigo-500 cursor-pointer"
+                            onChange={event => setSprintStart(event.target.value)}
+                            className="input cursor-pointer"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">End Date</label>
+                        <div className="space-y-1.5">
+                          <label className="label-xs">End</label>
                           <input
                             type="date"
                             required
                             value={sprintEnd}
-                            onChange={e => setSprintEnd(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2 outline-none focus:border-indigo-500 cursor-pointer"
+                            onChange={event => setSprintEnd(event.target.value)}
+                            className="input cursor-pointer"
                           />
                         </div>
                       </div>
 
-                      {/* Scope Selector: Backlog requirements check boxes */}
-                      <div className="space-y-2">
-                        <label className="text-[10px] text-slate-400 font-semibold uppercase block">Select Sprint Scope</label>
-                        <div className="max-h-40 overflow-y-auto border border-slate-800 rounded-lg p-2.5 bg-slate-950 space-y-2">
+                      <div className="space-y-1.5">
+                        <span className="label-xs">Sprint scope</span>
+                        <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-line bg-surface-2 p-2.5">
                           {allProjectRequirements
-                            .filter(r => !r.sprintId)
-                            .map(r => (
-                              <label key={r.id} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                            .filter(requirement => !requirement.sprintId)
+                            .map(requirement => (
+                              <label key={requirement.id} className="flex cursor-pointer items-center gap-2 text-xs text-ink-soft">
                                 <input
                                   type="checkbox"
-                                  checked={selectedReqIds.includes(r.id)}
-                                  onChange={e => {
-                                    if (e.target.checked) {
-                                      setSelectedReqIds(prev => [...prev, r.id]);
-                                    } else {
-                                      setSelectedReqIds(prev => prev.filter(id => id !== r.id));
-                                    }
+                                  checked={selectedReqIds.includes(requirement.id)}
+                                  onChange={event => {
+                                    if (event.target.checked) setSelectedReqIds(prev => [...prev, requirement.id]);
+                                    else setSelectedReqIds(prev => prev.filter(id => id !== requirement.id));
                                   }}
-                                  className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                                  className="h-3.5 w-3.5 cursor-pointer accent-[var(--brand)]"
                                 />
-                                <span className="truncate">{r.title}</span>
+                                <span className="truncate">{requirement.title}</span>
                               </label>
                             ))}
-                          {allProjectRequirements.filter(r => !r.sprintId).length === 0 && (
-                            <p className="text-[10px] text-slate-650 italic text-center py-2">No backlog requirements available.</p>
+                          {allProjectRequirements.filter(requirement => !requirement.sprintId).length === 0 && (
+                            <p className="py-2 text-center text-[10px] italic text-ink-faint">No backlog requirements available.</p>
                           )}
                         </div>
                       </div>
@@ -886,375 +885,397 @@ export const Dashboard: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isCreatingSprint || selectedReqIds.length === 0}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg py-2.5 text-xs font-semibold transition-all shadow-md shadow-indigo-500/10"
+                        className="btn-primary w-full py-2.5"
                       >
-                        {isCreatingSprint ? 'Initializing...' : 'Initialize Sprint'}
+                        {isCreatingSprint ? 'Starting…' : 'Start sprint'}
                       </button>
                     </form>
                   )}
-                </div>
+                </section>
 
-                {/* Subtask Creation Form inside inline block */}
                 {activeReqForSubtask !== null && (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-bold text-slate-200">Add Subtask</h3>
-                      <button type="button" onClick={() => setActiveReqForSubtask(null)} className="text-slate-400 text-xs">✕</button>
+                  <section className="card p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="font-display text-lg font-semibold text-ink">New task</h3>
+                      <button type="button" onClick={() => setActiveReqForSubtask(null)} className="text-xs text-ink-faint hover:text-ink">
+                        Cancel
+                      </button>
                     </div>
 
-                    <form onSubmit={handleAddSubtask} className="space-y-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 font-semibold uppercase">Subtask Title</label>
+                    <form onSubmit={handleAddSubtask} className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="label-xs">Title</label>
                         <input
                           type="text"
                           required
                           value={newSubtaskTitle}
-                          onChange={e => setNewSubtaskTitle(e.target.value)}
-                          placeholder="e.g. Write integration test suites"
-                          className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500"
+                          onChange={event => setNewSubtaskTitle(event.target.value)}
+                          placeholder="e.g. Write integration tests"
+                          className="input"
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">Story Points</label>
+                        <div className="space-y-1.5">
+                          <label className="label-xs">Points</label>
                           <input
                             type="number"
                             required
                             min={1}
                             value={newSubtaskSP}
-                            onChange={e => setNewSubtaskSP(parseInt(e.target.value) || 1)}
-                            className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 text-center"
+                            onChange={event => setNewSubtaskSP(parseInt(event.target.value) || 1)}
+                            className="input text-center tnum"
                           />
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-semibold uppercase">Assignee</label>
+                        <div className="space-y-1.5">
+                          <label className="label-xs">Assignee</label>
                           <select
                             value={newSubtaskAssignee}
-                            onChange={e => setNewSubtaskAssignee(e.target.value ? Number(e.target.value) : '')}
-                            className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500 cursor-pointer"
+                            onChange={event => setNewSubtaskAssignee(event.target.value ? Number(event.target.value) : '')}
+                            className="input cursor-pointer"
                           >
                             <option value="">Unassigned</option>
-                            {members.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.fullName}
+                            {members.map(member => (
+                              <option key={member.id} value={member.id}>
+                                {member.fullName}
                               </option>
                             ))}
                           </select>
                         </div>
                       </div>
 
-                      <div className="pt-2 flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setActiveReqForSubtask(null)}
-                          className="w-1/2 border border-slate-800 hover:bg-slate-800 text-slate-400 rounded-lg py-2 text-xs font-semibold transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isAddingSubtask}
-                          className="w-1/2 bg-indigo-655 hover:bg-indigo-600 text-white rounded-lg py-2 text-xs font-semibold transition-colors"
-                        >
-                          Add Task
-                        </button>
-                      </div>
+                      <button type="submit" disabled={isAddingSubtask} className="btn-primary w-full">
+                        {isAddingSubtask ? 'Adding…' : 'Add task'}
+                      </button>
                     </form>
-                  </div>
+                  </section>
                 )}
               </div>
             </div>
           )}
 
-          {/* TAB C: Sprint Metrics */}
+          {/* Metrics */}
           {activeTab === 'C' && (
-            <div className="space-y-8">
+            <div className="space-y-5">
               {sprint ? (
                 <>
-                  {/* Visual Charts Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Burn-down Chart */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                          <TrendingDown size={18} className="text-indigo-400" />
-                          Sprint Burn-Down Chart
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    <section className="card p-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                          <TrendingDown size={16} className="text-brand" />
+                          Burndown
                         </h3>
-                        <span className="text-[10px] text-slate-500 font-medium">Trajectory velocity</span>
+                        <span className="text-[10px] text-ink-faint">Remaining story points</span>
                       </div>
-                      <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={burndownData}>
-                            <defs>
-                              <linearGradient id="colorIdeal" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#475569" stopOpacity={0.1}/>
-                                <stop offset="95%" stopColor="#475569" stopOpacity={0}/>
-                              </linearGradient>
-                              <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#6366F1" stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor="#6366F1" stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                            <XAxis dataKey="day" stroke="#475569" fontSize={10} />
-                            <YAxis stroke="#475569" fontSize={10} />
-                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                            <Legend wrapperStyle={{ fontSize: '11px' }} />
-                            <Area name="Ideal Trajectory" type="monotone" dataKey="Ideal" stroke="#475569" strokeDasharray="5 5" fillOpacity={1} fill="url(#colorIdeal)" />
-                            <Area name="Actual Remaining" type="monotone" dataKey="Actual" stroke="#6366F1" strokeWidth={2} fillOpacity={1} fill="url(#colorActual)" />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                      <div className="h-60">
+                        {burndownData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={burndownData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor={brandLine} stopOpacity={0.22} />
+                                  <stop offset="100%" stopColor={brandLine} stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                              <XAxis dataKey="day" stroke={chartAxis} fontSize={10} tickLine={false} />
+                              <YAxis stroke={chartAxis} fontSize={10} tickLine={false} allowDecimals={false} />
+                              <Tooltip contentStyle={chartTooltip} />
+                              <Legend wrapperStyle={{ fontSize: '11px' }} />
+                              <Area
+                                name="Ideal"
+                                type="linear"
+                                dataKey="Ideal"
+                                stroke={chartAxis}
+                                strokeDasharray="5 4"
+                                fill="none"
+                                strokeWidth={1.5}
+                              />
+                              <Area
+                                name="Remaining"
+                                type="stepAfter"
+                                dataKey="Actual"
+                                stroke={brandLine}
+                                strokeWidth={2}
+                                fill="url(#actualFill)"
+                                connectNulls={false}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs italic text-ink-faint">
+                            No sprint dates to plot yet.
+                          </div>
+                        )}
                       </div>
-                    </div>
+                      <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
+                        The remaining line is replayed from recorded task status changes; the dashed line is the ideal
+                        straight burn from {metrics?.activeSprintTotalPoints ?? 0} points.
+                      </p>
+                    </section>
 
-                    {/* Point Distribution Bar Chart */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                          <BarChart4 size={18} className="text-emerald-400" />
-                          Column Point Distribution
+                    <section className="card p-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                          <BarChart4 size={16} className="text-leaf" />
+                          Points by column
                         </h3>
-                        <span className="text-[10px] text-slate-500 font-medium">Story Points by status</span>
+                        <span className="text-[10px] text-ink-faint">Story points</span>
                       </div>
-                      <div className="h-64">
+                      <div className="h-60">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={distributionData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                            <XAxis dataKey="name" stroke="#475569" fontSize={10} />
-                            <YAxis stroke="#475569" fontSize={10} />
-                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                            <Bar dataKey="points" name="Story Points" radius={[4, 4, 0, 0]}>
-                              {distributionData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
+                          <BarChart data={distributionData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                            <XAxis dataKey="name" stroke={chartAxis} fontSize={10} tickLine={false} />
+                            <YAxis stroke={chartAxis} fontSize={10} tickLine={false} allowDecimals={false} />
+                            <Tooltip contentStyle={chartTooltip} />
+                            <Bar dataKey="points" name="Story points" radius={[5, 5, 0, 0]} maxBarSize={56}>
+                              {distributionData.map(entry => (
+                                <Cell key={entry.name} fill={entry.color} />
                               ))}
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
-                    </div>
+                    </section>
                   </div>
 
-                  {/* Sprint health and progress summary */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Radial Health Score Gauge */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-4">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sprint Health Score</h4>
-                      
-                      <div className="relative w-40 h-40 flex items-center justify-center">
-                        {/* Circular track border */}
-                        <div className="absolute inset-0 rounded-full border-[10px] border-slate-800"></div>
-                        {/* Interactive glow score circle */}
-                        <div
-                          className="absolute inset-0 rounded-full border-[10px] border-transparent border-t-indigo-500 border-r-indigo-500 transition-all duration-1000"
-                          style={{
-                            transform: `rotate(${Math.min(360, (sprint.healthScore / 100) * 360 - 90)}deg)`
-                          }}
-                        ></div>
-                        <div className="flex flex-col items-center justify-center">
-                          <span className="text-4xl font-extrabold text-slate-100">{sprint.healthScore}%</span>
-                          <span className="text-[10px] text-slate-500 mt-1 uppercase font-semibold">Stability Rating</span>
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                    <section className="card flex flex-col items-center p-5 text-center">
+                      <h4 className="label-xs">Sprint health</h4>
+
+                      <div className="relative mt-4 h-36 w-36">
+                        <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
+                          <circle cx="64" cy="64" r={gaugeRadius} fill="none" stroke="var(--line)" strokeWidth="10" />
+                          <circle
+                            cx="64"
+                            cy="64"
+                            r={gaugeRadius}
+                            fill="none"
+                            stroke={healthScore === null ? 'transparent' : 'var(--brand)'}
+                            strokeWidth="10"
+                            strokeLinecap="round"
+                            strokeDasharray={gaugeCircumference}
+                            strokeDashoffset={gaugeOffset}
+                            style={{ transition: 'stroke-dashoffset 700ms ease' }}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className={`font-display text-3xl font-semibold tnum ${healthTone}`}>
+                            {healthScore === null ? '—' : `${healthScore}%`}
+                          </span>
+                          <span className="label-xs mt-1">Score</span>
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-450 leading-relaxed max-w-[220px]">
-                        {sprint.healthScore >= 80
-                          ? 'Excellent. Task allocation is balanced, and delivery trajectory looks stable.'
-                          : sprint.healthScore >= 50
-                          ? 'Moderate Risk. Minor bottlenecks and slight story point variance observed.'
-                          : 'High Risk. Significant work delay, resource congestion, or unassigned dependencies.'}
+                      <p className="mt-4 max-w-[230px] text-[11px] leading-relaxed text-ink-soft">
+                        {healthScore === null
+                          ? 'The metrics endpoint has not scored this sprint yet.'
+                          : healthScore >= 80
+                            ? 'Delivery is on track: load is balanced and timing matches the remaining work.'
+                            : healthScore >= 50
+                              ? 'Some risk: load or timing is drifting from the committed plan.'
+                              : 'High risk: remaining work outweighs the sprint timing and available capacity.'}
                       </p>
-                    </div>
 
-                    {/* Sprint progress summary */}
-                    <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                        <BarChart4 size={18} className="text-indigo-400" />
-                        Sprint Progress
+                      <p className="mt-3 text-[10px] text-ink-faint">
+                        40% velocity · 30% workload balance · 30% timing
+                      </p>
+                    </section>
+
+                    <section className="card p-5 lg:col-span-2">
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <BarChart4 size={16} className="text-brand" />
+                        Progress
                       </h3>
 
-                      <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
-                          <span className="block text-xl font-extrabold text-blue-400">{sprintProgress.todoTasks}</span>
-                          <span className="text-[10px] text-slate-500 uppercase font-semibold">To Do</span>
-                        </div>
-                        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
-                          <span className="block text-xl font-extrabold text-amber-400">{sprintProgress.inProgressTasks}</span>
-                          <span className="text-[10px] text-slate-500 uppercase font-semibold">In Progress</span>
-                        </div>
-                        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
-                          <span className="block text-xl font-extrabold text-emerald-400">{sprintProgress.doneTasks}</span>
-                          <span className="text-[10px] text-slate-500 uppercase font-semibold">Done</span>
-                        </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
+                        {[
+                          { label: 'To Do', value: sprintProgress.todoTasks, tone: 'text-ink-soft' },
+                          { label: 'In Progress', value: sprintProgress.inProgressTasks, tone: 'text-brand' },
+                          { label: 'Done', value: sprintProgress.doneTasks, tone: 'text-leaf' },
+                        ].map(stat => (
+                          <div key={stat.label} className="rounded-xl border border-line bg-surface-2 p-3">
+                            <span className={`block font-display text-2xl font-semibold tnum ${stat.tone}`}>{stat.value}</span>
+                            <span className="label-xs mt-0.5">{stat.label}</span>
+                          </div>
+                        ))}
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                      <div className="mt-5 space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-faint">
                           <span>Story point completion</span>
-                          <span>{sprintProgress.donePoints} / {sprintProgress.totalPoints} SP</span>
+                          <span className="tnum">
+                            {sprintProgress.donePoints} / {sprintProgress.totalPoints} SP
+                          </span>
                         </div>
-                        <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-paper-2">
                           <div
-                            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                            className="h-full rounded-full bg-leaf transition-all duration-500"
                             style={{ width: `${sprintProgress.completionPct}%` }}
                           />
                         </div>
-                        <p className="text-[10px] text-slate-500">
-                          {sprintProgress.completionPct}% of committed story points are complete across {sprintProgress.totalTasks} tasks.
+                        <p className="text-[10px] text-ink-faint tnum">
+                          {sprintProgress.completionPct}% complete across {sprintProgress.totalTasks} tasks.
                         </p>
                       </div>
-                    </div>
+                    </section>
                   </div>
                 </>
               ) : (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500 flex flex-col items-center justify-center">
-                  <BarChart4 size={36} className="text-slate-700 mb-3 animate-pulse" />
-                  <p className="text-xs">No active sprint initialized.</p>
-                  <p className="text-[10px] text-slate-600 mt-1">Please navigate to the Backlog tab and start a sprint first.</p>
+                <div className="card flex flex-col items-center justify-center p-12 text-center">
+                  <BarChart4 size={30} className="mb-3 text-ink-faint" />
+                  <p className="text-sm text-ink-soft">No active sprint</p>
+                  <p className="mt-1 text-[11px] text-ink-faint">
+                    Metrics appear once a sprint is started in the Backlog tab.
+                  </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB D: Team Composition */}
+          {/* Team */}
           {activeTab === 'D' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Member List */}
-              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-                <h3 className="text-sm font-bold text-slate-200">Active Workspace Contributors</h3>
-                <div className="divide-y divide-slate-800">
-                  {members.map(m => {
-                    const isExpanded = !!expandedMembers[m.id];
-                    
-                    // Filter tasks assigned to this member in active sprint and requirements backlog
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <section className="card p-5 lg:col-span-2">
+                <h3 className="mb-3 text-sm font-semibold text-ink">Contributors</h3>
+
+                <div className="divide-y divide-line">
+                  {members.map(member => {
+                    const isExpanded = !!expandedMembers[member.id];
                     const userTasks: any[] = [];
-                    const taskIds = new Set<number>();
-                    
-                    if (sprint?.subtasks) {
-                      sprint.subtasks.forEach(t => {
-                        if (t.assignee?.id === m.id) {
-                          userTasks.push(t);
-                          taskIds.add(t.id);
-                        }
-                      });
-                    }
-                    
-                    allProjectRequirements?.forEach(r => {
-                      r.tasks?.forEach(t => {
-                        if ((t.assignee?.id === m.id || t.assigneeId === m.id) && !taskIds.has(t.id)) {
-                          userTasks.push(t);
-                          taskIds.add(t.id);
+                    const seen = new Set<number>();
+
+                    sprint?.subtasks.forEach(task => {
+                      if (task.assignee?.id === member.id) {
+                        userTasks.push(task);
+                        seen.add(task.id);
+                      }
+                    });
+
+                    allProjectRequirements.forEach(requirement => {
+                      requirement.tasks?.forEach(task => {
+                        if ((task.assignee?.id === member.id || task.assigneeId === member.id) && !seen.has(task.id)) {
+                          userTasks.push(task);
+                          seen.add(task.id);
                         }
                       });
                     });
-                    
-                    const totalPoints = userTasks.reduce((sum, t) => sum + (t.effortPoints || 0), 0);
-                    const doneTasks = userTasks.filter(t => t.status === 'DONE');
-                    const progressPercentage = m.capacityPoints > 0 ? Math.min(100, Math.round((totalPoints / m.capacityPoints) * 100)) : 0;
-                    
+
+                    const totalPoints = userTasks.reduce((sum, task) => sum + (task.effortPoints || 0), 0);
+                    const doneTasks = userTasks.filter(task => task.status === 'DONE');
+                    const utilization =
+                      member.capacityPoints > 0 ? Math.round((totalPoints / member.capacityPoints) * 100) : 0;
+
                     return (
-                      <div key={m.id} className="border-b border-slate-800 last:border-b-0 py-2.5">
-                        {/* Member Summary Row */}
-                        <div
-                          onClick={() => setExpandedMembers(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
-                          className="flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-800/30 p-2 rounded-xl transition-all"
+                      <div key={member.id} className="py-1">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedMembers(prev => ({ ...prev, [member.id]: !prev[member.id] }))}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg p-2 text-left transition hover:bg-surface-2"
+                          aria-expanded={isExpanded}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
-                              {m.fullName.charAt(0)}
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-200">{m.fullName}</h4>
-                              <p className="text-[10px] text-slate-500">{m.email}</p>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#f6b544] text-xs font-bold uppercase text-white">
+                              {member.fullName.charAt(0)}
+                            </span>
+                            <div className="min-w-0">
+                              <h4 className="truncate text-xs font-semibold text-ink">{member.fullName}</h4>
+                              <p className="truncate text-[10px] text-ink-faint">{member.email}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-semibold uppercase">
-                              {m.role}
+
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span
+                              className={`chip uppercase ${
+                                member.role === 'OWNER'
+                                  ? 'border-brand/25 bg-brand-soft text-brand'
+                                  : 'border-leaf/25 bg-leaf-soft text-leaf'
+                              }`}
+                            >
+                              {member.role}
                             </span>
-                            <span className="text-[9px] bg-slate-850 text-slate-450 px-2 py-0.5 rounded-full font-medium">
-                              {totalPoints} / {m.capacityPoints} SP
+                            <span className="chip border-line bg-surface-2 text-ink-soft tnum">
+                              {totalPoints}/{member.capacityPoints} SP
                             </span>
-                            <div className="text-slate-400">
-                              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                            </div>
+                            {isExpanded ? (
+                              <ChevronDown size={15} className="text-ink-faint" />
+                            ) : (
+                              <ChevronRight size={15} className="text-ink-faint" />
+                            )}
                           </div>
-                        </div>
-                        
-                        {/* Accordion Content */}
+                        </button>
+
                         {isExpanded && (
-                          <div className="mt-3 pl-12 pr-4 pb-2 space-y-3 animate-fade-in text-xs text-slate-300">
-                            {/* Capacity Utilization Progress Bar */}
+                          <div className="space-y-3 pb-3 pl-14 pr-2 pt-1 text-xs text-ink-soft">
                             <div className="space-y-1.5">
-                              <div className="flex justify-between text-[10px] text-slate-450 font-semibold uppercase">
-                                <span>Capacity Utilization</span>
-                                <span>{progressPercentage}% ({totalPoints} / {m.capacityPoints} SP)</span>
+                              <div className="flex justify-between text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+                                <span>Capacity used</span>
+                                <span className="tnum">
+                                  {utilization}% ({totalPoints}/{member.capacityPoints} SP)
+                                </span>
                               </div>
-                              <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-800">
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-paper-2">
                                 <div
                                   className={`h-full rounded-full transition-all duration-500 ${
-                                    progressPercentage > 100
-                                      ? 'bg-rose-500'
-                                      : progressPercentage > 80
-                                      ? 'bg-amber-500'
-                                      : 'bg-indigo-500'
+                                    utilization > 100 ? 'bg-danger' : utilization > 80 ? 'bg-brand' : 'bg-leaf'
                                   }`}
-                                  style={{ width: `${Math.min(100, progressPercentage)}%` }}
-                                ></div>
+                                  style={{ width: `${Math.min(100, utilization)}%` }}
+                                />
                               </div>
                             </div>
-                            
-                            {/* Task Breakdown stats */}
-                            <div className="grid grid-cols-3 gap-2 text-center text-[10px] py-1 bg-slate-950/40 rounded-lg border border-slate-850">
+
+                            <div className="grid grid-cols-3 gap-2 rounded-lg border border-line bg-surface-2 py-2 text-center text-[10px]">
                               <div>
-                                <span className="block font-bold text-slate-200">{userTasks.length}</span>
-                                <span className="text-slate-500 uppercase font-semibold">Total Tasks</span>
+                                <span className="block text-sm font-bold text-ink tnum">{userTasks.length}</span>
+                                <span className="label-xs">Total</span>
                               </div>
                               <div>
-                                <span className="block font-bold text-emerald-400">{doneTasks.length}</span>
-                                <span className="text-slate-500 uppercase font-semibold">Completed</span>
+                                <span className="block text-sm font-bold text-leaf tnum">{doneTasks.length}</span>
+                                <span className="label-xs">Done</span>
                               </div>
                               <div>
-                                <span className="block font-bold text-amber-400">{userTasks.filter(t => t.status === 'IN_PROGRESS').length}</span>
-                                <span className="text-slate-500 uppercase font-semibold">In Progress</span>
+                                <span className="block text-sm font-bold text-brand tnum">
+                                  {userTasks.filter(task => task.status === 'IN_PROGRESS').length}
+                                </span>
+                                <span className="label-xs">Doing</span>
                               </div>
                             </div>
-                            
-                            {/* Assigned Tasks list */}
-                            <div className="space-y-1.5">
-                              <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Subtasks</h5>
-                              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                                {userTasks.map(t => {
-                                  const reqTitle = allProjectRequirements.find(r => r.id === t.requirementId)?.title || 'Task';
-                                  
-                                  const statusBadge: Record<TaskStatus, string> = {
-                                    TODO: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-                                    IN_PROGRESS: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-                                    DONE: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-                                  };
-                                  
-                                  return (
-                                    <div key={t.id} className="flex justify-between items-center bg-slate-950/60 hover:bg-slate-950 p-2 rounded-lg border border-slate-850/50">
-                                      <div className="min-w-0 pr-2">
-                                        <div className="text-[11px] font-medium text-slate-200 truncate">{t.title}</div>
-                                        <div className="text-[9px] text-slate-500 truncate">{reqTitle}</div>
-                                      </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        <span className={`text-[8px] font-bold border px-1.5 py-0.5 rounded uppercase tracking-wider ${statusBadge[t.status as TaskStatus]}`}>
-                                          {t.status.replace('_', ' ')}
-                                        </span>
-                                        <span className="text-[9px] font-bold bg-slate-900 px-1 py-0.5 rounded border border-slate-800 text-slate-400">
-                                          {t.effortPoints} SP
-                                        </span>
-                                      </div>
+
+                            <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+                              {userTasks.map(task => {
+                                const requirementTitle =
+                                  allProjectRequirements.find(requirement => requirement.id === task.requirementId)?.title || 'Task';
+                                const statusTone: Record<TaskStatus, string> = {
+                                  TODO: 'border-line bg-surface-2 text-ink-soft',
+                                  IN_PROGRESS: 'border-brand/25 bg-brand-soft text-brand',
+                                  DONE: 'border-leaf/25 bg-leaf-soft text-leaf',
+                                };
+                                return (
+                                  <div
+                                    key={task.id}
+                                    className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="truncate text-[11px] font-medium text-ink">{task.title}</div>
+                                      <div className="truncate text-[9px] text-ink-faint">{requirementTitle}</div>
                                     </div>
-                                  );
-                                })}
-                                {userTasks.length === 0 && (
-                                  <p className="text-[10px] text-slate-500 italic text-center py-2">No tasks assigned to this contributor.</p>
-                                )}
-                              </div>
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                      <span className={`chip uppercase ${statusTone[task.status as TaskStatus]}`}>
+                                        {String(task.status).replace('_', ' ')}
+                                      </span>
+                                      <span className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-ink-soft tnum">
+                                        {task.effortPoints} SP
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {userTasks.length === 0 && (
+                                <p className="py-2 text-center text-[10px] italic text-ink-faint">No tasks assigned.</p>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1262,64 +1283,59 @@ export const Dashboard: React.FC = () => {
                     );
                   })}
                   {members.length === 0 && (
-                    <p className="text-xs text-slate-500 italic text-center py-4">No team contributors added yet.</p>
+                    <p className="py-6 text-center text-xs italic text-ink-faint">No contributors yet.</p>
                   )}
                 </div>
-              </div>
+              </section>
 
-              {/* Invite contributor form */}
-              <div>
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <UserPlus size={16} className="text-indigo-400" />
-                    Invite Collaborator
-                  </h3>
-                  
-                  {isProjOwner ? (
-                    <form onSubmit={handleInviteMember} className="space-y-4">
-                      {inviteMsg && (
-                        <div className={`p-3 rounded-lg text-xs text-center border ${
-                          inviteMsg.type === 'success' 
-                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                            : 'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}>
-                          {inviteMsg.text}
-                        </div>
-                      )}
-                      
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 font-semibold uppercase">Contributor Email</label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Mail size={14} className="text-slate-500" />
-                          </div>
-                          <input
-                            type="email"
-                            required
-                            value={inviteEmail}
-                            onChange={e => setInviteEmail(e.target.value)}
-                            placeholder="collaborator@company.com"
-                            className="w-full bg-slate-950 border border-slate-750 text-slate-100 text-xs rounded-lg pl-9 pr-3 py-2.5 outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                      </div>
+              <section className="card h-fit p-5">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <UserPlus size={15} className="text-brand" />
+                  Invite a collaborator
+                </h3>
 
-                      <button
-                        type="submit"
-                        disabled={isInviting}
-                        className="w-full bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg py-2.5 text-xs font-semibold transition-all shadow-md shadow-indigo-500/10 flex items-center justify-center gap-2"
+                {isProjOwner ? (
+                  <form onSubmit={handleInviteMember} className="mt-3 space-y-3">
+                    {inviteMsg && (
+                      <div
+                        className={`rounded-lg border px-3 py-2 text-xs ${
+                          inviteMsg.type === 'success'
+                            ? 'border-leaf/30 bg-leaf-soft text-leaf'
+                            : 'border-danger/30 bg-danger-soft text-danger'
+                        }`}
                       >
-                        <UserPlus size={14} />
-                        {isInviting ? 'Inviting...' : 'Invite Member'}
-                      </button>
-                    </form>
-                  ) : (
-                    <p className="text-xs text-slate-500 italic">
-                      Invitations are restricted to the project owner.
+                        {inviteMsg.text}
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <label className="label-xs">Email</label>
+                      <div className="relative">
+                        <Mail size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+                        <input
+                          type="email"
+                          required
+                          value={inviteEmail}
+                          onChange={event => setInviteEmail(event.target.value)}
+                          placeholder="collaborator@company.com"
+                          className="input pl-9"
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={isInviting} className="btn-primary w-full py-2.5">
+                      <UserPlus size={14} />
+                      {isInviting ? 'Inviting…' : 'Invite member'}
+                    </button>
+
+                    <p className="text-[10px] leading-relaxed text-ink-faint">
+                      Invited accounts join as members of this project only.
                     </p>
-                  )}
-                </div>
-              </div>
+                  </form>
+                ) : (
+                  <p className="mt-3 text-xs italic text-ink-faint">Only the project owner can invite people.</p>
+                )}
+              </section>
             </div>
           )}
         </div>
@@ -1331,7 +1347,7 @@ export const Dashboard: React.FC = () => {
           isOpen={isAiModalOpen}
           onClose={() => setIsAiModalOpen(false)}
           onBacklogGenerated={() => {
-            refreshData();
+            void refreshData();
           }}
         />
       )}

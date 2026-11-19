@@ -62,11 +62,26 @@ export interface SprintInfo {
   isConcluded: boolean;
 }
 
+export interface BurndownPoint {
+  day: string;
+  remainingPoints: number;
+}
+
+/** Deterministic metrics returned by GET /projects/{id}/metrics. */
+export interface ProjectMetrics {
+  burndownPoints: BurndownPoint[];
+  activeSprintHealthScore?: number | null;
+  activeSprintStartDate?: string;
+  activeSprintEndDate?: string;
+  activeSprintTotalPoints?: number;
+}
+
 export interface SprintData {
   id: number;
   name: string;
   objectives: string;
-  healthScore: number;
+  /** Null when the metrics endpoint has no active sprint to score. */
+  healthScore: number | null;
   startDate: string;
   endDate: string;
   requirements: Requirement[];
@@ -81,6 +96,7 @@ interface SprintContextType {
   currentProject: Project | null;
   setCurrentProject: (project: Project | null) => void;
   sprint: SprintData | null;
+  metrics: ProjectMetrics | null;
   loading: boolean;
   members: User[];
   allProjectRequirements: Requirement[];
@@ -109,6 +125,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [memberProjects, setMemberProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProjectState] = useState<Project | null>(null);
   const [sprint, setSprint] = useState<SprintData | null>(null);
+  const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
   const [members, setMembers] = useState<User[]>([]);
   const [allProjectRequirements, setAllProjectRequirements] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -223,6 +240,16 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setAllProjectRequirements(mappedReqs);
 
+      // Deterministic project metrics: real health score and recorded burndown.
+      let projectMetrics: ProjectMetrics | null = null;
+      try {
+        const metricsRes = await api.get<ProjectMetrics>(`/projects/${projectId}/metrics`);
+        projectMetrics = metricsRes.data;
+      } catch (metricsErr) {
+        console.warn('Failed to load project metrics', metricsErr);
+      }
+      setMetrics(projectMetrics);
+
       // Map members
       const mappedMembers: User[] = (data.members || []).map((m: any) => ({
         id: m.id,
@@ -257,20 +284,11 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Requirements inside active sprint
         const sprintRequirements = mappedReqs.filter(r => r.sprintId === activeSprint.sprintId);
 
-        // Fetch the deterministic sprint health score from the metrics endpoint.
-        let healthScore = 100;
-        try {
-          const metricsRes = await api.get<any>(`/projects/${projectId}/metrics`);
-          healthScore = metricsRes.data.activeSprintHealthScore || metricsRes.data.healthScore || 100;
-        } catch (healthErr) {
-          console.warn('Failed to load health score from metrics', healthErr);
-        }
-
         setSprint({
           id: activeSprint.sprintId,
           name: activeSprint.objective || `Sprint ${activeSprint.sprintId}`,
           objectives: activeSprint.objective || '',
-          healthScore: healthScore,
+          healthScore: projectMetrics?.activeSprintHealthScore ?? null,
           startDate: activeSprint.startDate,
           endDate: activeSprint.endDate,
           requirements: sprintRequirements,
@@ -283,6 +301,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       console.error('Failed to load project details', err);
       setSprint(null);
+      setMetrics(null);
     } finally {
       setLoading(false);
     }
@@ -296,6 +315,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else {
       localStorage.removeItem('boostup_current_project_id');
       setSprint(null);
+      setMetrics(null);
       setAllProjectRequirements([]);
       setMembers([]);
     }
@@ -315,6 +335,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setCurrentProjectState(null);
     setSprint(null);
+    setMetrics(null);
   }, [isAuthenticated, loadProjects, loadProjectDetail]);
 
   useEffect(() => {
@@ -454,6 +475,7 @@ export const SprintProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       currentProject,
       setCurrentProject,
       sprint,
+      metrics,
       loading,
       members,
       allProjectRequirements,

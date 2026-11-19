@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SprintProvider } from './context/SprintContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -23,29 +24,37 @@ const AdministratorRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const RouteFallback = () => (
+  <div className="flex h-screen w-full items-center justify-center bg-paper text-sm text-ink-faint">
+    Loading BoostUP…
+  </div>
+);
+
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <SprintProvider>
-        <BrowserRouter>
-          <Suspense fallback={<div className="flex h-screen w-full items-center justify-center text-gray-500">Loading...</div>}>
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              <Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route index element={<Dashboard />} />
-                <Route path="admin" element={<AdministratorRoute><AdminDashboard /></AdministratorRoute>} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Route>
-              
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </SprintProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <SprintProvider>
+          <BrowserRouter>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+
+                <Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                  <Route index element={<Dashboard />} />
+                  <Route path="admin" element={<AdministratorRoute><AdminDashboard /></AdministratorRoute>} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </SprintProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 

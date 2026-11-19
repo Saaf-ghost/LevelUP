@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import api from '../../api/axios';
+import { Check, FileText, Loader2, Sparkles, X } from 'lucide-react';
 
 interface BacklogPdfUploadModalProps {
   projectId: number;
@@ -32,7 +33,6 @@ export const BacklogPdfUploadModal: React.FC<BacklogPdfUploadModalProps> = ({
     }
   }, [isOpen]);
 
-  // Polling loop when a job is in-flight
   useEffect(() => {
     if (!jobId || status === 'COMPLETED' || status === 'FAILED') return;
 
@@ -59,26 +59,6 @@ export const BacklogPdfUploadModal: React.FC<BacklogPdfUploadModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => setIsDragging(false);
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type === 'application/pdf' || droppedFile.name.toLowerCase().endsWith('.pdf')) {
-        setFile(droppedFile);
-      } else {
-        setErrorMessage('Please select a valid PDF file.');
-      }
-    }
-  };
-
   const handleUpload = async () => {
     if (!file) return;
     setStatus('PENDING');
@@ -88,28 +68,28 @@ export const BacklogPdfUploadModal: React.FC<BacklogPdfUploadModalProps> = ({
     formData.append('file', file);
 
     try {
-      const res = await api.post(`/v1/projects/${projectId}/ai/upload`, formData, {
+      const response = await api.post(`/v1/projects/${projectId}/ai/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setJobId(res.data.jobId);
+      setJobId(response.data.jobId);
     } catch (err: any) {
       setStatus('FAILED');
       setErrorMessage(err.response?.data?.message || 'Failed to submit document for processing.');
     }
   };
 
-  const getStatusStage = () => {
+  const stageLabel = () => {
     switch (status) {
       case 'PENDING':
-        return 'Uploading document & queuing job...';
+        return 'Uploading the document and queuing the job';
       case 'EXTRACTING_PDF':
-        return 'Extracting text with PyMuPDF & EasyOCR...';
+        return 'Extracting text from the PDF';
       case 'RUNNING_LLM':
-        return 'Decomposing requirements with Ollama (llama3)...';
+        return 'Decomposing requirements';
       case 'COMPLETED':
-        return 'Backlog items successfully created!';
+        return 'Backlog items created';
       case 'FAILED':
-        return 'Processing failed.';
+        return 'Processing failed';
       default:
         return '';
     }
@@ -118,31 +98,47 @@ export const BacklogPdfUploadModal: React.FC<BacklogPdfUploadModalProps> = ({
   const isProcessing = ['PENDING', 'EXTRACTING_PDF', 'RUNNING_LLM'].includes(status);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl text-slate-100">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">✨</span>
-            AI PDF Backlog Decomposer
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-line bg-surface-2 px-5 py-3.5">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
+            <Sparkles size={17} className="text-brand" />
+            Decompose a PRD
           </h2>
           {!isProcessing && (
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition">
-              ✕
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1 text-ink-faint transition hover:text-ink"
+              aria-label="Close"
+            >
+              <X size={17} />
             </button>
           )}
         </div>
 
         {status === 'IDLE' && (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4 p-5">
             <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+              onDragOver={event => {
+                event.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={event => {
+                event.preventDefault();
+                setIsDragging(false);
+                const dropped = event.dataTransfer.files?.[0];
+                if (!dropped) return;
+                if (dropped.type === 'application/pdf' || dropped.name.toLowerCase().endsWith('.pdf')) {
+                  setFile(dropped);
+                } else {
+                  setErrorMessage('Please select a valid PDF file.');
+                }
+              }}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${
-                isDragging
-                  ? 'border-indigo-500 bg-indigo-500/10'
-                  : 'border-slate-700 hover:border-slate-600 bg-slate-800/50'
+              className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition ${
+                isDragging ? 'border-brand bg-brand-soft' : 'border-line-strong bg-surface-2 hover:border-brand/60'
               }`}
             >
               <input
@@ -150,90 +146,72 @@ export const BacklogPdfUploadModal: React.FC<BacklogPdfUploadModalProps> = ({
                 type="file"
                 accept="application/pdf"
                 className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    setFile(e.target.files[0]);
-                  }
+                onChange={event => {
+                  if (event.target.files?.[0]) setFile(event.target.files[0]);
                 }}
               />
-              <div className="text-4xl mb-2">📄</div>
-              <p className="font-medium text-slate-200">
-                {file ? file.name : 'Drag & drop your PRD or specification PDF here'}
+              <FileText size={26} className="mx-auto mb-2 text-brand" />
+              <p className="text-sm font-medium text-ink">
+                {file ? file.name : 'Drop a PRD or specification PDF here'}
               </p>
-              <p className="text-sm text-slate-400 mt-1">Supports native text and scanned image PDFs</p>
+              <p className="mt-1 text-xs text-ink-faint">Text and scanned PDFs are both supported</p>
             </div>
 
             {errorMessage && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-sm">
+              <div className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
                 {errorMessage}
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition"
-              >
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={onClose} className="btn-quiet">
                 Cancel
               </button>
-              <button
-                type="button"
-                disabled={!file}
-                onClick={handleUpload}
-                className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium shadow-lg shadow-indigo-600/30 transition"
-              >
-                Decompose to Backlog
+              <button type="button" disabled={!file} onClick={handleUpload} className="btn-primary">
+                Decompose to backlog
               </button>
             </div>
           </div>
         )}
 
         {isProcessing && (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-6">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center text-lg">🤖</div>
-            </div>
+          <div className="flex flex-col items-center gap-4 px-6 py-14 text-center">
+            <Loader2 size={30} className="animate-spin text-brand" />
             <div>
-              <p className="text-lg font-semibold text-white">{getStatusStage()}</p>
-              <p className="text-sm text-slate-400 mt-1">
-                Processing asynchronously on local hardware to prevent UI freezing.
+              <p className="text-sm font-semibold text-ink">{stageLabel()}…</p>
+              <p className="mt-1 text-xs text-ink-faint">
+                This runs asynchronously on the worker, so it is safe to keep the tab open.
               </p>
             </div>
           </div>
         )}
 
         {status === 'COMPLETED' && (
-          <div className="py-8 flex flex-col items-center text-center space-y-4">
-            <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-2xl">
-              ✓
-            </div>
-            <h3 className="text-lg font-bold text-white">Decomposition Complete!</h3>
-            <p className="text-sm text-slate-300">
-              Requirements, User Stories, and Technical Tasks have been saved to your project backlog in Draft status.
+          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-leaf-soft text-leaf">
+              <Check size={24} />
+            </span>
+            <h3 className="font-display text-lg font-semibold text-ink">Backlog created</h3>
+            <p className="max-w-sm text-xs leading-relaxed text-ink-soft">
+              Requirements and technical tasks were saved to this project in backlog status.
             </p>
-            <button
-              onClick={onClose}
-              className="mt-4 px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition"
-            >
-              View Backlog
+            <button onClick={onClose} className="btn-leaf mt-2">
+              View backlog
             </button>
           </div>
         )}
 
         {status === 'FAILED' && (
-          <div className="py-8 flex flex-col items-center text-center space-y-4">
-            <div className="w-14 h-14 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center text-2xl">
-              ✕
-            </div>
-            <h3 className="text-lg font-bold text-white">Processing Failed</h3>
-            <p className="text-sm text-rose-300">{errorMessage || 'An error occurred during extraction or decomposition.'}</p>
-            <button
-              onClick={() => setStatus('IDLE')}
-              className="mt-4 px-6 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium transition"
-            >
-              Try Again
+          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-danger">
+              <X size={24} />
+            </span>
+            <h3 className="font-display text-lg font-semibold text-ink">Processing failed</h3>
+            <p className="max-w-sm text-xs text-danger">
+              {errorMessage || 'An error occurred during extraction or decomposition.'}
+            </p>
+            <button onClick={() => setStatus('IDLE')} className="btn-quiet mt-2">
+              Try again
             </button>
           </div>
         )}
@@ -241,4 +219,3 @@ export const BacklogPdfUploadModal: React.FC<BacklogPdfUploadModalProps> = ({
     </div>
   );
 };
-

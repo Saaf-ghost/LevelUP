@@ -6,64 +6,55 @@ interface Props {
   tasks: Subtask[];
 }
 
-const COLUMN_LABELS = {
+const STATUS_LABEL = {
   TODO: 'To Do',
   IN_PROGRESS: 'In Progress',
-  DONE: 'Done'
-};
+  DONE: 'Done',
+} as const;
 
 const RequirementsPanel: React.FC<Props> = ({ tasks }) => {
   const { sprint } = useSprint();
-
   if (!sprint) return null;
 
   return (
-    <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-      {sprint.requirements.map(req => {
-        const linked = tasks.filter(t => t.requirementId === req.id);
-        const totalPts = linked.reduce((s, t) => s + t.effortPoints, 0);
-        const donePts  = linked.filter(t => t.status === 'DONE').reduce((s, t) => s + t.effortPoints, 0);
-        const progress = totalPts > 0 ? Math.round((donePts / totalPts) * 100) : 0;
+    <div className="mb-4 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+      {sprint.requirements.map(requirement => {
+        const linked = tasks.filter(task => task.requirementId === requirement.id);
+        const totalPoints = linked.reduce((sum, task) => sum + task.effortPoints, 0);
+        const donePoints = linked.filter(task => task.status === 'DONE').reduce((sum, task) => sum + task.effortPoints, 0);
+        const progress = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
 
-        // Compute live status
-        let status: string;
-        if (linked.length === 0) status = 'TODO';
-        else if (linked.every(t => t.status === 'DONE')) status = 'DONE';
-        else if (linked.some(t => t.status === 'IN_PROGRESS')) status = 'IN_PROGRESS';
-        else status = 'TODO';
+        let status: keyof typeof STATUS_LABEL = 'TODO';
+        if (linked.length > 0 && linked.every(task => task.status === 'DONE')) status = 'DONE';
+        else if (linked.some(task => task.status === 'IN_PROGRESS')) status = 'IN_PROGRESS';
 
         return (
-          <div
-            key={req.id}
-            className="bg-slate-800/50 border border-slate-700/40 rounded-lg p-3 relative overflow-hidden"
-          >
-            {/* Color accent */}
-            <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: req.color }} />
+          <div key={requirement.id} className="relative overflow-hidden rounded-lg border border-line bg-surface p-3 pl-4">
+            <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: requirement.color }} />
 
-            <div className="pl-3">
-              <div className="flex items-center justify-between mb-1">
-                <h4 className="text-xs font-semibold text-slate-200 truncate">{req.title}</h4>
-                <span className="text-[10px] font-medium text-slate-400 bg-slate-900/60 px-1.5 py-0.5 rounded">
-                  {COLUMN_LABELS[status as keyof typeof COLUMN_LABELS] ?? status}
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-500 mb-2 truncate">{req.description}</p>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <h4 className="truncate text-xs font-semibold text-ink">{requirement.title}</h4>
+              <span className="shrink-0 rounded-full border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-soft">
+                {STATUS_LABEL[status]}
+              </span>
+            </div>
+            <p className="mb-2 truncate text-[10px] text-ink-faint">{requirement.description || 'No description'}</p>
 
-              {/* Progress bar */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${progress}%`, backgroundColor: req.color }}
-                  />
-                </div>
-                <span className="text-[10px] font-semibold text-slate-400">{progress}%</span>
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper-2">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, backgroundColor: requirement.color }}
+                />
               </div>
+              <span className="text-[10px] font-semibold text-ink-soft tnum">{progress}%</span>
+            </div>
 
-              <div className="flex items-center justify-between mt-1.5">
-                <span className="text-[10px] text-slate-500">{linked.length} subtask{linked.length !== 1 ? 's' : ''}</span>
-                <span className="text-[10px] font-semibold text-slate-400">{totalPts} SP</span>
-              </div>
+            <div className="mt-1.5 flex items-center justify-between text-[10px] text-ink-faint">
+              <span>
+                {linked.length} subtask{linked.length === 1 ? '' : 's'}
+              </span>
+              <span className="font-semibold tnum">{totalPoints} SP</span>
             </div>
           </div>
         );

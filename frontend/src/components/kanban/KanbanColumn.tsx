@@ -9,10 +9,10 @@ interface Props {
   tasks: Subtask[];
 }
 
-const COLUMN_LABELS: Record<TaskStatus, string> = {
-  TODO: 'To Do',
-  IN_PROGRESS: 'In Progress',
-  DONE: 'Done',
+const COLUMN_META: Record<TaskStatus, { label: string; dot: string; chip: string }> = {
+  TODO: { label: 'To Do', dot: 'bg-ink-faint', chip: 'border-line bg-surface-2 text-ink-soft' },
+  IN_PROGRESS: { label: 'In Progress', dot: 'bg-brand', chip: 'border-brand/30 bg-brand-soft text-brand' },
+  DONE: { label: 'Done', dot: 'bg-leaf', chip: 'border-leaf/30 bg-leaf-soft text-leaf' },
 };
 
 const KanbanColumn: React.FC<Props> = ({ id, tasks }) => {
@@ -21,72 +21,45 @@ const KanbanColumn: React.FC<Props> = ({ id, tasks }) => {
     data: { type: 'Column', columnId: id },
   });
 
-  const totalPoints = tasks.reduce((sum, t) => sum + t.effortPoints, 0);
-
-  // Column headers with orange/amber/emerald branding
-  const colBadgeStyle: Record<TaskStatus, { dot: string; bg: string; text: string; border: string }> = {
-    TODO: { 
-      dot: 'bg-slate-400', 
-      bg: 'bg-slate-100', 
-      text: 'text-slate-700', 
-      border: 'border-slate-200' 
-    },
-    IN_PROGRESS: { 
-      dot: 'bg-orange-500', 
-      bg: 'bg-orange-50', 
-      text: 'text-orange-700', 
-      border: 'border-orange-200' 
-    },
-    DONE: { 
-      dot: 'bg-emerald-500', 
-      bg: 'bg-emerald-50', 
-      text: 'text-emerald-700', 
-      border: 'border-emerald-200' 
-    },
-  };
-
-  const style = colBadgeStyle[id];
+  const totalPoints = tasks.reduce((sum, task) => sum + task.effortPoints, 0);
+  const meta = COLUMN_META[id];
 
   return (
-    <div className="flex flex-col flex-1 min-w-[270px] bg-slate-50/70 rounded-2xl border border-slate-200/90 h-full max-h-full overflow-hidden shadow-xs">
-      {/* Column header */}
-      <div className="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between bg-white/80 backdrop-blur-xs">
+    <section
+      className={`flex min-h-[320px] flex-col overflow-hidden rounded-xl border bg-surface-2 transition-colors ${
+        isOver ? 'border-brand/60 bg-brand-soft/40' : 'border-line'
+      }`}
+      aria-label={meta.label}
+    >
+      <header className="flex h-11 shrink-0 items-center justify-between border-b border-line bg-surface px-3">
         <div className="flex items-center gap-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            {COLUMN_LABELS[id]}
-          </h3>
+          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+          <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink">{meta.label}</h3>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+          <span className="rounded-full border border-line px-1.5 py-0.5 text-[10px] font-semibold text-ink-faint tnum">
             {tasks.length}
           </span>
-          <span className={`text-[10px] font-bold ${style.bg} ${style.text} px-2 py-0.5 rounded-full border ${style.border}`}>
+          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold tnum ${meta.chip}`}>
             {totalPoints} SP
           </span>
         </div>
-      </div>
+      </header>
 
-      {/* Droppable area */}
-      <div
-        ref={setNodeRef}
-        className={`flex-1 overflow-y-auto p-2.5 flex flex-col gap-2.5 transition-colors ${
-          isOver ? 'bg-orange-500/5 ring-2 ring-orange-400/40 rounded-b-2xl' : ''
-        }`}
-      >
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+      <div ref={setNodeRef} className="flex max-h-[62vh] flex-1 flex-col gap-2 overflow-y-auto p-2.5">
+        <SortableContext items={tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
             <TaskCard key={task.id} task={task} />
           ))}
         </SortableContext>
 
         {tasks.length === 0 && (
-          <div className="h-full min-h-[90px] border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-slate-400 text-xs font-medium bg-white/40">
+          <div className="flex min-h-[88px] flex-1 items-center justify-center rounded-lg border border-dashed border-line-strong text-[11px] font-medium text-ink-faint">
             Drop tasks here
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 
