@@ -9,8 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -31,7 +31,7 @@ class AuthControllerTests {
     }
 
     @Test
-    void registerReturnsTokenAndUser() throws Exception {
+    void firstRegistrationBootstrapsTheAdministrator() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -39,20 +39,37 @@ class AuthControllerTests {
                                   "email": "owner@boostup.com",
                                   "password": "password",
                                   "fullName": "BoostUP Owner",
-                                  "role": "OWNER",
                                   "capacityPoints": 40
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token", not(blankOrNullString())))
                 .andExpect(jsonPath("$.user.email").value("owner@boostup.com"))
-                .andExpect(jsonPath("$.user.role").value("OWNER"))
+                .andExpect(jsonPath("$.user.role").value("ADMINISTRATOR"))
                 .andExpect(jsonPath("$.user.capacityPoints").value(40));
     }
 
     @Test
+    void registrationCannotEscalateItsOwnRole() throws Exception {
+        register("owner@boostup.com", "BoostUP Owner");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "intruder@boostup.com",
+                                  "password": "password",
+                                  "fullName": "Intruder",
+                                  "role": "ADMINISTRATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.role").value("USER"));
+    }
+
+    @Test
     void loginReturnsTokenForRegisteredUser() throws Exception {
-        registerOwner();
+        register("owner@boostup.com", "BoostUP Owner");
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -75,25 +92,24 @@ class AuthControllerTests {
 
     @Test
     void protectedApiAcceptsBearerToken() throws Exception {
-        String token = registerOwner();
+        String token = register("owner@boostup.com", "BoostUP Owner");
 
         mockMvc.perform(get("/api/projects")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
 
-    private String registerOwner() throws Exception {
+    private String register(String email, String fullName) throws Exception {
         String response = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "owner@boostup.com",
+                                  "email": "%s",
                                   "password": "password",
-                                  "fullName": "BoostUP Owner",
-                                  "role": "OWNER",
+                                  "fullName": "%s",
                                   "capacityPoints": 40
                                 }
-                                """))
+                                """.formatted(email, fullName)))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

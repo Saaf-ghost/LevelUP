@@ -1,8 +1,12 @@
 package com.boostup.dto;
 
-import com.boostup.model.User;
 import lombok.Data;
 
+/**
+ * Registration payload. The platform role is never taken from the client:
+ * new accounts are created as USER (the very first account bootstraps
+ * the platform ADMINISTRATOR).
+ */
 @Data
 public class RegisterRequest {
     private String email;
@@ -10,6 +14,5 @@ public class RegisterRequest {
     private String fullName;
     private String firstName;
     private String lastName;
-    private User.Role role;
     private Integer capacityPoints;
 }

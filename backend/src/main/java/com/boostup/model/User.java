@@ -35,7 +35,8 @@ public class User extends BaseAudit {
     @Column(nullable = false)
     private Role role;
 
-    public enum Role { OWNER, MEMBER, VIEWER }
+    /** Platform-wide role. Project roles are tracked separately per project. */
+    public enum Role { ADMINISTRATOR, USER }
 
     @Column(nullable = false)
     private Integer capacityPoints = 40;

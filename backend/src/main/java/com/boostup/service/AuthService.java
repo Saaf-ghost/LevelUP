@@ -50,7 +50,9 @@ public class AuthService {
         user.setEmail(email);
         user.setFullName(resolveFullName(request));
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setRole(request.getRole() == null ? User.Role.MEMBER : request.getRole());
+        // The role is decided server-side only: the first account bootstraps the
+        // platform administrator, every later account is a regular user.
+        user.setRole(userRepository.count() == 0 ? User.Role.ADMINISTRATOR : User.Role.USER);
         user.setCapacityPoints(request.getCapacityPoints() == null ? 40 : Math.max(0, request.getCapacityPoints()));
 
         User saved = userRepository.save(user);

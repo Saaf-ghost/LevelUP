@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell } from 'recharts';
-import { LogOut, ChevronDown, FolderOpen, Zap } from 'lucide-react';
+import { LogOut, ChevronDown, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSprint } from '../../context/SprintContext';

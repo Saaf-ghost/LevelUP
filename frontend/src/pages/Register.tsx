@@ -49,7 +49,6 @@ const Register: React.FC = () => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         fullName: `${formData.firstName} ${formData.lastName}`,
-        role: 'OWNER',
         capacityPoints: 40
       });
       login(response.data.token, response.data.user);

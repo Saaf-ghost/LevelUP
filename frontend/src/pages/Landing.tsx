@@ -45,7 +45,7 @@ const Landing: React.FC = () => {
           {[
             { icon: <Columns3 size={24} className="text-emerald-400" />, title: "Real-Time Kanban", desc: "Drag-and-drop columns that keep every teammate in sync." },
             { icon: <ListChecks size={24} className="text-indigo-400" />, title: "Backlog & Sprints", desc: "User stories, sprint scope, and burndown tracking in one flow." },
-            { icon: <Users size={24} className="text-purple-400" />, title: "Team & Roles", desc: "Owner, manager, developer, and viewer permissions per project." }
+            { icon: <Users size={24} className="text-purple-400" />, title: "Team & Roles", desc: "Owner and member permissions per project, with platform administrators on top." }
           ].map((feature, i) => (
             <div key={i} className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50 text-left hover:border-slate-600 transition-colors">
               <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center mb-4">

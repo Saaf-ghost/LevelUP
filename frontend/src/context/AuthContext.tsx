@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
-export type Role = 'OWNER' | 'MEMBER' | 'VIEWER' | 'MANAGER' | 'ADMIN';
+/** Platform-wide role. Per-project roles (OWNER/MEMBER) come from the project detail API. */
+export type Role = 'ADMINISTRATOR' | 'USER';
 
 export interface User {
   id: number;
@@ -14,7 +15,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   role: Role;
-  setRole: (role: Role) => void;
+  isAdministrator: boolean;
   isAuthenticated: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
@@ -34,14 +35,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch { return null; }
   });
 
-  const [role, setRole] = useState<Role>(() => {
-    try {
-      const stored = localStorage.getItem(AUTH_USER_KEY);
-      if (stored) return (JSON.parse(stored) as User).role as Role;
-    } catch { /* ignore */ }
-    return 'VIEWER';
-  });
-
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return !!localStorage.getItem(AUTH_TOKEN_KEY);
   });
@@ -53,13 +46,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
-  const formatUser = (u: any) => {
+  const formatUser = (u: any): User | null => {
     if (!u) return null;
+    const normalizedRole: Role = u.role === 'ADMINISTRATOR' ? 'ADMINISTRATOR' : 'USER';
     return {
       id: u.id,
       email: u.email,
       fullName: u.fullName || 'Unknown User',
-      role: u.role || 'MEMBER',
+      role: normalizedRole,
       capacityPoints: u.capacityPoints || 40
     };
   };
@@ -69,7 +63,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem(AUTH_TOKEN_KEY, token);
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
     setUser(normalized);
-    setRole(normalized?.role as Role);
     setIsAuthenticated(true);
   }, []);
 
@@ -78,7 +71,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem(AUTH_USER_KEY);
     localStorage.removeItem('boostup_current_project_id');
     setUser(null);
-    setRole('VIEWER');
     setIsAuthenticated(false);
   }, []);
 
@@ -88,8 +80,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
   }, []);
 
+  const role: Role = user?.role ?? 'USER';
+
   return (
-    <AuthContext.Provider value={{ user, role, setRole, isAuthenticated, login, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        role,
+        isAdministrator: role === 'ADMINISTRATOR',
+        isAuthenticated,
+        login,
+        logout,
+        updateUser
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
