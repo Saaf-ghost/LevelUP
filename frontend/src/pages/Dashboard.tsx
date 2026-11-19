@@ -16,7 +16,8 @@ import {
   UserPlus,
   Play,
   LogOut,
-  FolderOpen
+  FolderOpen,
+  Sparkles
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -32,6 +33,7 @@ import {
   Legend
 } from 'recharts';
 import KanbanBoard from '../components/kanban/KanbanBoard';
+import { BacklogPdfUploadModal } from '../components/ai/BacklogPdfUploadModal';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -59,6 +61,7 @@ export const Dashboard: React.FC = () => {
 
   // Modal / Form states
   const [isCreateProjOpen, setIsCreateProjOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
   const [isCreatingProj, setIsCreatingProj] = useState(false);
@@ -599,14 +602,22 @@ export const Dashboard: React.FC = () => {
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-sm font-bold text-slate-200">Requirements Backlog Tree</h3>
-                    {isProjOwner && (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setIsAddingReq(true)}
-                        className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                        onClick={() => setIsAiModalOpen(true)}
+                        className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 flex items-center gap-1.5 transition"
                       >
-                        <Plus size={14} /> Add Requirement
+                        <Sparkles size={14} className="text-indigo-400" /> AI Decompose PRD
                       </button>
-                    )}
+                      {isProjOwner && (
+                        <button
+                          onClick={() => setIsAddingReq(true)}
+                          className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                        >
+                          <Plus size={14} /> Add Requirement
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Add Requirement Form inline overlay */}
@@ -1312,6 +1323,17 @@ export const Dashboard: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {currentProject && (
+        <BacklogPdfUploadModal
+          projectId={currentProject.id}
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+          onBacklogGenerated={() => {
+            refreshData();
+          }}
+        />
       )}
     </div>
   );

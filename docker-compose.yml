@@ -11,5 +11,18 @@ services:
     volumes:
       - boostup-postgres-data:/var/lib/postgresql/data
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: boostup-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-boostup}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-boostup}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - boostup-rabbitmq-data:/var/lib/rabbitmq
+
 volumes:
   boostup-postgres-data:
+  boostup-rabbitmq-data:

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell } from 'recharts';
-import { LogOut, ChevronDown, FolderOpen } from 'lucide-react';
+import { LogOut, ChevronDown, FolderOpen, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSprint } from '../../context/SprintContext';
@@ -33,7 +33,7 @@ const Header: React.FC = () => {
   // ---------- Sprint Timer Calculations ----------
   const { daysLeft, totalDays, timePercent, timeColor } = useMemo(() => {
     if (!sprint) {
-      return { daysLeft: 0, totalDays: 1, timePercent: 0, timeColor: '#475569' };
+      return { daysLeft: 0, totalDays: 1, timePercent: 0, timeColor: '#94a3b8' };
     }
     const now = Date.now();
     const start = new Date(sprint.startDate).getTime();
@@ -44,7 +44,7 @@ const Header: React.FC = () => {
 
     let color = '#10b981'; // green
     if (left <= 2)      color = '#ef4444'; // red
-    else if (left <= 5) color = '#f59e0b'; // amber
+    else if (left <= 5) color = '#f97316'; // orange
 
     return { daysLeft: left, totalDays: total, timePercent: pct, timeColor: color };
   }, [sprint]);
@@ -61,29 +61,32 @@ const Header: React.FC = () => {
   ];
   let healthColor = '#10b981';
   if (healthScore < 50)      healthColor = '#ef4444';
-  else if (healthScore < 80) healthColor = '#f59e0b';
+  else if (healthScore < 80) healthColor = '#f97316';
 
   return (
-    <header className="h-16 bg-[#0F172A] border-b border-[#334155] flex items-center justify-between px-6 z-10 sticky top-0 shadow-md">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 sticky top-0 shadow-sm backdrop-blur-md">
       {/* Brand logo & workspace details */}
       <div className="flex items-center gap-4 min-w-0">
         <div 
           onClick={() => setCurrentProject(null)}
-          className="flex items-center gap-2 font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 hover:opacity-90 transition-opacity cursor-pointer"
+          className="flex items-center gap-2.5 cursor-pointer group"
         >
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-md">
-            <span className="text-indigo-400 text-sm font-black">B</span>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-md shadow-orange-500/20 group-hover:scale-105 transition-all">
+            <span className="text-white text-sm font-black tracking-tight">B</span>
           </div>
-          <span className="text-sm font-extrabold uppercase tracking-widest hidden sm:inline-block">BoostUP</span>
+          <span className="text-sm font-black uppercase tracking-widest text-slate-900 group-hover:text-orange-600 transition-colors hidden sm:inline-block">
+            Boost<span className="text-orange-600">UP</span>
+          </span>
         </div>
 
         {currentProject && (
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4 min-w-0">
-            <span className="text-xs font-semibold text-slate-300 truncate max-w-[120px] md:max-w-[200px]">
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 min-w-0">
+            <span className="text-xs font-bold text-slate-800 truncate max-w-[120px] md:max-w-[200px]">
               {currentProject.name}
             </span>
             {sprint && (
-              <span className="hidden md:inline-block text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-medium truncate max-w-[100px]">
+              <span className="hidden md:inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold truncate max-w-[120px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 {sprint.name}
               </span>
             )}
@@ -91,17 +94,17 @@ const Header: React.FC = () => {
         )}
       </div>
 
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-3.5 shrink-0">
         {/* Dynamic Sprint details inside header only when currentProject is active */}
         {currentProject && sprint && (
           <>
             {/* Sprint Timer */}
-            <div className="hidden md:flex items-center gap-2 bg-slate-900/60 px-3 py-1 rounded-xl border border-slate-800">
+            <div className="hidden md:flex items-center gap-2.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-xs">
               <div className="relative w-8 h-8 flex items-center justify-center">
                 <PieChart width={36} height={36}>
                   <Pie data={timeData} cx={14} cy={14} innerRadius={10} outerRadius={14} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
                     <Cell fill={timeColor} />
-                    <Cell fill="#1e293b" />
+                    <Cell fill="#e2e8f0" />
                   </Pie>
                 </PieChart>
                 <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold" style={{ color: timeColor }}>
@@ -109,18 +112,18 @@ const Header: React.FC = () => {
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-semibold text-slate-350 leading-tight">Sprint Timer</span>
-                <span className="text-[9px] text-slate-550 leading-tight">{daysLeft} of {totalDays} days</span>
+                <span className="text-[10px] font-bold text-slate-700 leading-tight">Sprint Timer</span>
+                <span className="text-[9px] text-slate-500 font-medium leading-tight">{daysLeft} of {totalDays} days</span>
               </div>
             </div>
 
             {/* Health Score */}
-            <div className="hidden md:flex items-center gap-2 bg-slate-900/60 px-3 py-1 rounded-xl border border-slate-800">
+            <div className="hidden md:flex items-center gap-2.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-xs">
               <div className="relative w-8 h-8 flex items-center justify-center">
                 <PieChart width={36} height={36}>
                   <Pie data={healthData} cx={14} cy={14} innerRadius={10} outerRadius={14} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
                     <Cell fill={healthColor} />
-                    <Cell fill="#1e293b" />
+                    <Cell fill="#e2e8f0" />
                   </Pie>
                 </PieChart>
                 <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold" style={{ color: healthColor }}>
@@ -128,8 +131,8 @@ const Header: React.FC = () => {
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-semibold text-slate-350 leading-tight">Sprint Health</span>
-                <span className="text-[9px] text-slate-550 leading-tight">Score Rating</span>
+                <span className="text-[10px] font-bold text-slate-700 leading-tight">Sprint Health</span>
+                <span className="text-[9px] text-slate-500 font-medium leading-tight">Score Rating</span>
               </div>
             </div>
           </>
@@ -139,21 +142,21 @@ const Header: React.FC = () => {
         <div className="relative" ref={profileRef}>
           <button
             onClick={() => setIsProfileOpen(v => !v)}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-800 transition-colors focus:outline-none cursor-pointer"
+            className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 transition-colors focus:outline-none cursor-pointer shadow-xs"
           >
-            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-[9px] font-bold text-white uppercase shrink-0">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center text-[10px] font-bold text-white uppercase shrink-0 shadow-xs">
               {user?.fullName.charAt(0)}
             </div>
-            <span className="text-xs text-slate-300 font-semibold hidden md:inline truncate max-w-[100px]">
+            <span className="text-xs text-slate-700 font-bold hidden md:inline truncate max-w-[100px]">
               {user?.fullName.split(' ')[0]}
             </span>
-            <ChevronDown size={12} className="text-slate-500" />
+            <ChevronDown size={13} className="text-slate-400" />
           </button>
 
           {isProfileOpen && (
-            <div className="absolute right-0 mt-2 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60">
-                <p className="text-xs font-bold text-slate-200 truncate">{user?.fullName}</p>
+            <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80">
+                <p className="text-xs font-bold text-slate-900 truncate">{user?.fullName}</p>
                 <p className="text-[10px] text-slate-500 truncate mt-0.5">{user?.email}</p>
               </div>
               <div className="py-1">
@@ -162,16 +165,16 @@ const Header: React.FC = () => {
                     setIsProfileOpen(false);
                     setCurrentProject(null);
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-300 hover:bg-slate-850 hover:text-slate-100 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                 >
-                  <FolderOpen size={14} className="text-indigo-400" />
+                  <FolderOpen size={14} className="text-orange-500" />
                   Workspace Dashboard
                 </button>
               </div>
-              <div className="border-t border-slate-800 py-1">
+              <div className="border-t border-slate-100 py-1">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors"
                 >
                   <LogOut size={14} />
                   Sign out

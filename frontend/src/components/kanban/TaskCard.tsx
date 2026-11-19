@@ -45,7 +45,7 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
       <div
         ref={setNodeRef}
         style={style}
-        className="h-[100px] rounded-lg border-2 border-dashed border-indigo-500/40 bg-indigo-500/5"
+        className="h-[105px] rounded-xl border-2 border-dashed border-orange-400 bg-orange-50/40"
       />
     );
   }
@@ -57,37 +57,37 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
       {...attributes}
       {...listeners}
       className={clsx(
-        'bg-[#1E293B] rounded-lg border group cursor-grab active:cursor-grabbing hover:border-slate-650 transition-all duration-150 relative overflow-hidden',
+        'bg-white rounded-xl border group cursor-grab active:cursor-grabbing hover:border-orange-300 hover:shadow-md transition-all duration-150 relative overflow-hidden',
         isOverlay
-          ? 'shadow-2xl shadow-indigo-500/20 border-indigo-500 scale-[1.03]'
-          : 'border-slate-700/60 shadow-sm',
+          ? 'shadow-2xl shadow-orange-500/20 border-orange-500 scale-[1.03]'
+          : 'border-slate-200/90 shadow-xs',
       )}
     >
       {/* Requirement stripe */}
       <div
         className="absolute left-0 top-0 bottom-0 w-1"
-        style={{ backgroundColor: isBottleneck ? '#ef4444' : (requirement?.color ?? '#6366F1') }}
+        style={{ backgroundColor: isBottleneck ? '#ef4444' : (requirement?.color ?? '#f97316') }}
       />
 
       <div className="p-3 pl-4">
         {/* Requirement label + time badge */}
         <div className="flex items-center justify-between mb-1.5">
           <span
-            className="text-[10px] font-semibold uppercase tracking-wider truncate max-w-[130px]"
-            style={{ color: requirement?.color ?? '#818cf8' }}
+            className="text-[10px] font-bold uppercase tracking-wider truncate max-w-[130px]"
+            style={{ color: requirement?.color ?? '#ea580c' }}
             title={requirement?.title}
           >
             {requirement?.title ?? 'Unlinked'}
           </span>
 
           {isBottleneck && (
-            <span className="flex items-center gap-0.5 text-red-405 bg-red-500/10 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0" title="Bottleneck">
+            <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 border border-rose-200" title="Bottleneck">
               <AlertCircle size={10} />
               {timeInColumn}h
             </span>
           )}
           {!isBottleneck && timeInColumn > 0 && (
-            <span className="flex items-center gap-0.5 text-slate-500 text-[10px] shrink-0">
+            <span className="flex items-center gap-0.5 text-slate-400 text-[10px] font-medium shrink-0">
               <Clock size={10} />
               {timeInColumn}h
             </span>
@@ -95,30 +95,34 @@ const TaskCard: React.FC<Props> = ({ task, isOverlay }) => {
         </div>
 
         {/* Title */}
-        <p className="text-[13px] font-medium text-slate-200 leading-snug mb-3 group-hover:text-indigo-300 transition-colors">
+        <p className="text-[13px] font-semibold text-slate-800 leading-snug mb-3 group-hover:text-orange-600 transition-colors">
           {task.title}
         </p>
 
-        {/* Footer: assignee + points */}
-        <div className="flex items-center justify-between">
+        {/* Footer: Points + Assignee avatar */}
+        <div className="flex items-center justify-between pt-1 border-t border-slate-100">
           <div className="flex items-center gap-1.5">
-            {assignee ? (
-              <>
-                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-[8px] font-bold text-white shrink-0" title={assignee.fullName}>
-                  {assignee.fullName.charAt(0)}
-                </div>
-                <span className="text-[10px] text-slate-400 hidden sm:inline">{assignee.fullName.split(' ')[0]}</span>
-              </>
-            ) : (
-              <div className="w-5 h-5 rounded-full bg-slate-700 border border-dashed border-slate-600 flex items-center justify-center text-[9px] text-slate-500">
-                ?
-              </div>
-            )}
+            <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+              {task.effortPoints} SP
+            </span>
+            <span className="text-[10px] font-medium text-slate-400">
+              {task.estimatedHours}h est.
+            </span>
           </div>
 
-          <span className="text-[10px] font-semibold text-slate-400 bg-slate-900/60 px-1.5 py-0.5 rounded border border-slate-700/40">
-            {task.effortPoints} SP
-          </span>
+          {/* Assignee Avatar */}
+          {assignee ? (
+            <div
+              className="w-5 h-5 rounded-full bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center text-[9px] font-bold text-white shadow-xs"
+              title={assignee.fullName}
+            >
+              {assignee.fullName.charAt(0)}
+            </div>
+          ) : (
+            <div className="w-5 h-5 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-[9px] text-slate-400" title="Unassigned">
+              -
+            </div>
+          )}
         </div>
       </div>
     </div>
