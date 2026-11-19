@@ -109,12 +109,18 @@ public class AIJobService {
 
     @Transactional
     public void handleWorkerCallback(String jobId, BacklogDecompositionCallbackDTO callback) {
-        AIJob job = jobRepository.findByJobId(jobId)
+        AIJob job = jobRepository.findWithLockByJobId(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId));
 
         if (job.getStatus() == AIJobStatus.COMPLETED || job.getStatus() == AIJobStatus.FAILED) {
             logger.info("Ignoring duplicate callback for already finished job {}", jobId);
             return;
+        }
+
+        if (callback.getProjectId() != null && !callback.getProjectId().equals(job.getProjectId())) {
+            logger.warn("Rejecting callback for job {}: payload project {} does not match job project {}",
+                    jobId, callback.getProjectId(), job.getProjectId());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Callback project does not match the job");
         }
 
         String incomingStatus = callback.getStatus();
