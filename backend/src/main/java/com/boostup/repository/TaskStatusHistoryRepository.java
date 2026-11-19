@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface TaskStatusHistoryRepository extends JpaRepository<TaskStatusHistory, Long> {
     List<TaskStatusHistory> findByTaskIdOrderByChangedAtDesc(Long taskId);
+    List<TaskStatusHistory> findByTaskIdInOrderByChangedAtAsc(List<Long> taskIds);
 }

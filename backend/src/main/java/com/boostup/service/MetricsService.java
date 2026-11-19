@@ -10,11 +10,13 @@ import com.boostup.model.Projet;
 import com.boostup.model.Sprint;
 import com.boostup.model.SprintMetricSnapshot;
 import com.boostup.model.Task;
+import com.boostup.model.TaskStatusHistory;
 import com.boostup.model.User;
 import com.boostup.repository.ProjetRepository;
 import com.boostup.repository.SprintMetricSnapshotRepository;
 import com.boostup.repository.SprintRepository;
 import com.boostup.repository.TaskRepository;
+import com.boostup.repository.TaskStatusHistoryRepository;
 import com.boostup.service.factory.MetricCalculatorFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -36,6 +38,7 @@ public class MetricsService {
     private final ProjetRepository projetRepository;
     private final TaskRepository taskRepository;
     private final SprintMetricSnapshotRepository snapshotRepository;
+    private final TaskStatusHistoryRepository statusHistoryRepository;
     private final MetricFormulaCalculator calculator;
     private final AuthorizationService authorizationService;
     private final int reviewThresholdHours;
@@ -45,6 +48,7 @@ public class MetricsService {
             ProjetRepository projetRepository,
             TaskRepository taskRepository,
             SprintMetricSnapshotRepository snapshotRepository,
+            TaskStatusHistoryRepository statusHistoryRepository,
             MetricFormulaCalculator calculator,
             AuthorizationService authorizationService,
             @Value("${app.metrics.review-threshold-hours:24}") int reviewThresholdHours
@@ -53,6 +57,7 @@ public class MetricsService {
         this.projetRepository = projetRepository;
         this.taskRepository = taskRepository;
         this.snapshotRepository = snapshotRepository;
+        this.statusHistoryRepository = statusHistoryRepository;
         this.calculator = calculator;
         this.authorizationService = authorizationService;
         this.reviewThresholdHours = reviewThresholdHours;
@@ -158,42 +163,78 @@ public class MetricsService {
 
         Sprint activeSprint = sprintRepository.findByProjectIdAndIsActive(projectId, true).orElse(null);
         List<Map<String, Object>> burndown = new ArrayList<>();
-        if (activeSprint != null) {
-            List<Task> activeTasks = taskRepository.findBySprintSprintId(activeSprint.getSprintId());
-            int totalPoints = activeTasks.stream()
-                    .mapToInt(t -> t.getEffortPoints() == null ? 0 : t.getEffortPoints())
-                    .sum();
-
-            LocalDate start = activeSprint.getStartDate();
-            LocalDate end = activeSprint.getEndDate();
-
-            LocalDate current = start;
-            while (!current.isAfter(end)) {
-                LocalDate dateCopy = current;
-                int completedOnOrBefore = activeTasks.stream()
-                        .filter(t -> t.getStatus() == Task.TaskStatus.DONE)
-                        .filter(t -> {
-                            LocalDateTime changedAt = t.getStatusChangedAt() == null ? t.getUpdatedAt() : t.getStatusChangedAt();
-                            return changedAt != null && !changedAt.toLocalDate().isAfter(dateCopy);
-                        })
-                        .mapToInt(t -> t.getEffortPoints() == null ? 0 : t.getEffortPoints())
-                        .sum();
-
-                Map<String, Object> point = new LinkedHashMap<>();
-                point.put("day", dateCopy.toString());
-                point.put("remainingPoints", Math.max(0, totalPoints - completedOnOrBefore));
-                burndown.add(point);
-
-                current = current.plusDays(1);
-            }
-        }
 
         Map<String, Object> metrics = new LinkedHashMap<>();
         metrics.put("projectId", projectId);
         metrics.put("completionRatios", completionRatios);
         metrics.put("velocityPatterns", velocityPatterns);
         metrics.put("burndownPoints", burndown);
+
+        if (activeSprint == null) {
+            return metrics;
+        }
+
+        List<Task> activeTasks = taskRepository.findBySprintSprintId(activeSprint.getSprintId());
+        int totalPoints = activeTasks.stream()
+                .mapToInt(t -> t.getEffortPoints() == null ? 0 : t.getEffortPoints())
+                .sum();
+
+        // Replay the recorded status history instead of guessing a curve, so a reopened
+        // task reappears in the burndown on the day it was reopened.
+        List<Long> taskIds = activeTasks.stream().map(Task::getId).toList();
+        Map<Long, List<TaskStatusHistory>> historiesByTask = new LinkedHashMap<>();
+        if (!taskIds.isEmpty()) {
+            for (TaskStatusHistory history : statusHistoryRepository.findByTaskIdInOrderByChangedAtAsc(taskIds)) {
+                historiesByTask
+                        .computeIfAbsent(history.getTask().getId(), key -> new ArrayList<>())
+                        .add(history);
+            }
+        }
+
+        LocalDate start = activeSprint.getStartDate();
+        LocalDate end = activeSprint.getEndDate();
+        LocalDate current = start;
+        while (!current.isAfter(end)) {
+            LocalDate dateCopy = current;
+            int remaining = activeTasks.stream()
+                    .filter(task -> statusOn(task, historiesByTask.get(task.getId()), dateCopy) != Task.TaskStatus.DONE)
+                    .mapToInt(task -> task.getEffortPoints() == null ? 0 : task.getEffortPoints())
+                    .sum();
+
+            Map<String, Object> point = new LinkedHashMap<>();
+            point.put("day", dateCopy.toString());
+            point.put("remainingPoints", Math.max(0, remaining));
+            burndown.add(point);
+
+            current = current.plusDays(1);
+        }
+
+        var health = (HealthDTO) MetricCalculatorFactory.getCalculator("health")
+                .calculate(activeSprint, activeTasks, calculator);
+        metrics.put("activeSprintId", activeSprint.getSprintId());
+        metrics.put("activeSprintHealthScore", health.score());
+        metrics.put("activeSprintHealth", health);
+        metrics.put("activeSprintStartDate", start.toString());
+        metrics.put("activeSprintEndDate", end.toString());
+        metrics.put("activeSprintTotalPoints", totalPoints);
         return metrics;
+    }
+
+    /** Status of a task at the end of a given day, derived from its recorded transitions. */
+    private Task.TaskStatus statusOn(Task task, List<TaskStatusHistory> history, LocalDate day) {
+        if (history == null || history.isEmpty()) {
+            return task.getStatus();
+        }
+        Task.TaskStatus status = history.get(0).getFromStatus() == null
+                ? Task.TaskStatus.TODO
+                : history.get(0).getFromStatus();
+        for (TaskStatusHistory entry : history) {
+            if (entry.getChangedAt() == null || entry.getChangedAt().toLocalDate().isAfter(day)) {
+                break;
+            }
+            status = entry.getToStatus();
+        }
+        return status;
     }
 
     private Sprint getSprint(Long sprintId) {
