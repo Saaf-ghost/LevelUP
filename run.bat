@@ -13,6 +13,13 @@ if not exist "%~dp0.env" (
     echo [.env] Default .env created.
 )
 
+:: Free the fixed ports from services left running by a previous launch.
+:: Without this, a stale backend makes the new Spring Boot process abort with
+:: "Web server failed to start. Port 8082 was already in use."
+echo [*] Releasing ports 8082, 8090 and 5173 from previous runs...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($port in 8082,8090,5173) { $owners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($ownerId in $owners) { if ($ownerId -and $ownerId -ne 0) { $procName = (Get-Process -Id $ownerId -ErrorAction SilentlyContinue).ProcessName; Write-Host ('[*] Port ' + $port + ' is busy (PID ' + $ownerId + ', ' + $procName + '). Stopping stale instance...'); taskkill /PID $ownerId /T /F | Out-Null } } }; Start-Sleep -Milliseconds 1500"
+echo [*] Ports are free.
+
 :: Ensure Ollama is running in the background
 curl -s http://localhost:11434/api/tags >nul 2>&1
 if %ERRORLEVEL% neq 0 (
