@@ -33,6 +33,7 @@ public class AIJobService {
     private final RequirementRepository requirementRepository;
     private final TaskRepository taskRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final AuthorizationService authorizationService;
 
     @Value("${app.upload.dir:./uploads}")
     private String uploadDir;
@@ -48,18 +49,21 @@ public class AIJobService {
             ProjetRepository projetRepository,
             RequirementRepository requirementRepository,
             TaskRepository taskRepository,
-            RabbitTemplate rabbitTemplate
+            RabbitTemplate rabbitTemplate,
+            AuthorizationService authorizationService
     ) {
         this.jobRepository = jobRepository;
         this.projetRepository = projetRepository;
         this.requirementRepository = requirementRepository;
         this.taskRepository = taskRepository;
         this.rabbitTemplate = rabbitTemplate;
+        this.authorizationService = authorizationService;
     }
 
     public AIJobStatusDTO submitPdfForDecomposition(Long projectId, MultipartFile file) {
         Projet projet = projetRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+        authorizationService.requireProjectEditor(projectId);
 
         if (file.isEmpty() || file.getOriginalFilename() == null || !file.getOriginalFilename().toLowerCase().endsWith(".pdf")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid PDF file is required.");
@@ -99,6 +103,7 @@ public class AIJobService {
     public AIJobStatusDTO getJobStatus(String jobId) {
         AIJob job = jobRepository.findByJobId(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));
+        authorizationService.requireProjectViewer(job.getProjectId());
         return new AIJobStatusDTO(job.getJobId(), job.getProjectId(), job.getStatus(), job.getErrorMessage());
     }
 
@@ -106,6 +111,11 @@ public class AIJobService {
     public void handleWorkerCallback(String jobId, BacklogDecompositionCallbackDTO callback) {
         AIJob job = jobRepository.findByJobId(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId));
+
+        if (job.getStatus() == AIJobStatus.COMPLETED || job.getStatus() == AIJobStatus.FAILED) {
+            logger.info("Ignoring duplicate callback for already finished job {}", jobId);
+            return;
+        }
 
         String incomingStatus = callback.getStatus();
         logger.info("Received callback for job {} with status {}", jobId, incomingStatus);

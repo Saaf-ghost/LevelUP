@@ -40,7 +40,11 @@ class RabbitMQWorker:
         url = f"{self.settings.backend_api_base}{self.settings.backend_callback_path.format(job_id=payload.job_id)}"
         try:
             with httpx.Client(timeout=15.0) as client:
-                res = client.post(url, json=payload.model_dump())
+                res = client.post(
+                    url,
+                    json=payload.model_dump(),
+                    headers={"X-AI-Callback-Token": self.settings.backend_callback_token},
+                )
                 logger.info(f"Backend notified for job {payload.job_id} ({payload.status}): HTTP {res.status_code}")
         except Exception as exc:
             logger.error(f"Failed to post status update to Spring Boot callback: {exc}")

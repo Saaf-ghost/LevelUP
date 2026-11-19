@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # Backend Gateway Integration
     backend_api_base: str = "http://localhost:8082"
     backend_callback_path: str = "/api/v1/jobs/{job_id}/callback"
+    backend_callback_token: str = "change-this-ai-callback-token"
     max_job_retries: int = 3
 
     model_config = SettingsConfigDict(
